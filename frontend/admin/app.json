@@ -1,0 +1,7 @@
+{
+  "expo": {
+    "name": "FloodGuard Admin Web",
+    "slug": "floodguard-admin-web",
+    "platforms": ["web"]
+  }
+}

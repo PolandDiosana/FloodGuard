@@ -1,0 +1,15 @@
+{
+  "expo": {
+    "name": "FloodGuard Admin Web Landing",
+    "slug": "floodguard-admin-web-admin",
+    "platforms": [
+      "web"
+    ],
+    "plugins": [
+      "expo-font"
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}

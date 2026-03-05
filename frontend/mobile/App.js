@@ -1,0 +1,5559 @@
+import "react-native-gesture-handler";
+import React, { useEffect, useMemo, useRef, useState, createContext, useContext } from "react";
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  SafeAreaView,
+  ScrollView,
+  Image,
+  Dimensions,
+  Platform,
+  StatusBar,
+  TextInput,
+  Modal,
+  KeyboardAvoidingView,
+  Alert,
+  ActivityIndicator,
+  Animated,
+  Easing,
+  useWindowDimensions,
+  Linking,
+  ImageBackground,
+  TouchableWithoutFeedback,
+  Switch,
+  BackHandler,
+} from "react-native";
+import { NavigationContainer, useFocusEffect } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { createDrawerNavigator, DrawerContentScrollView } from "@react-navigation/drawer";
+import { LinearGradient } from "expo-linear-gradient";
+import {
+  Feather,
+  Ionicons,
+  MaterialCommunityIcons,
+} from "@expo/vector-icons";
+import { CardStyleInterpolators } from "@react-navigation/stack";
+import MapView, { Marker, Polygon, Polyline } from "react-native-maps";
+import * as ImagePicker from "expo-image-picker";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+export const ThemeContext = createContext();
+export const useTheme = () => useContext(ThemeContext);
+
+export const theme = {
+  background: "#1E2A38",
+  surface: "#283747",
+  textPrimary: "#ffffff",
+  textSecondary: "#94a3b8",
+  border: "#44566A",
+  primary: "#74C5E6",
+  accent: "#437D8F",
+  statusSafe: "#2fb864",
+  statusSafeBg: "rgba(47, 184, 100, 0.15)",
+  danger: "#e2463b",
+  badgeBg: "#34495E",
+  drawerActiveBg: "rgba(116, 197, 230, 0.1)",
+  drawerActiveBorder: "#74C5E6",
+  cardBlue: "rgba(10, 65, 116, 0.6)",
+  mapCard: "#34495E",
+  brandGradient: ["#437D8F", "#6EA2B3"]
+};
+
+
+const Stack = createStackNavigator();
+const Drawer = createDrawerNavigator();
+const BRAND_GRADIENT = ["#74C5E6", "#6a36f5"];
+const EVAC_GRADIENT = ["#e2463b", "#f08c2e"];
+const STEPS = 4;
+const LANDING_IMAGE = require("./assets/flood2.jpg");
+const LANDING_BG = require("./assets/flood3.jpg");
+const ACCOUNT_IMAGE = require("./assets/flood.png");
+const LOCATION_IMAGE = require("./assets/flood4.jpg");
+const NOTIFY_IMAGE = require("./assets/flood5.jpg");
+const LOGO = require("./assets/logo.png");
+
+const safeGoBack = (navigation, fallback) => {
+  if (navigation?.canGoBack?.()) {
+    navigation.goBack();
+    return;
+  }
+  if (fallback) {
+    navigation.navigate(fallback);
+  }
+};
+
+const MABOLO_REGION = {
+  latitude: 10.3172,
+  longitude: 123.9181,
+  latitudeDelta: 0.0075,
+  longitudeDelta: 0.0075,
+};
+
+const MABOLO_BOUNDARY = [
+  { latitude: 10.3208, longitude: 123.9133 },
+  { latitude: 10.3212, longitude: 123.9217 },
+  { latitude: 10.3135, longitude: 123.9222 },
+  { latitude: 10.3129, longitude: 123.9142 },
+];
+
+const SENSOR_POINTS = [
+  { id: "sensor-1", latitude: 10.3189, longitude: 123.9162, risk: "low" },
+  { id: "sensor-2", latitude: 10.3166, longitude: 123.9194, risk: "medium" },
+  { id: "sensor-3", latitude: 10.3152, longitude: 123.9169, risk: "high" },
+  { id: "sensor-4", latitude: 10.3181, longitude: 123.9207, risk: "low" },
+];
+
+const USER_LOCATION = { latitude: 10.3165, longitude: 123.9176 };
+const SAFE_ROUTE = [
+  { latitude: 10.3165, longitude: 123.9176 },
+  { latitude: 10.3178, longitude: 123.9185 },
+  { latitude: 10.3192, longitude: 123.9198 },
+];
+const FLOOD_ZONE = [
+  { latitude: 10.3142, longitude: 123.9149 },
+  { latitude: 10.3152, longitude: 123.9156 },
+  { latitude: 10.3141, longitude: 123.9174 },
+  { latitude: 10.3134, longitude: 123.9159 },
+];
+
+const EVAC_CENTERS = [
+  {
+    id: "center-1",
+    name: "Barangay Hall Mabolo",
+    distance: "0.8 km",
+    capacity: 200,
+    slots: 150,
+    status: "open",
+    phone: "+639171234567",
+    coordinate: { latitude: 10.3179, longitude: 123.9153 },
+  },
+  {
+    id: "center-2",
+    name: "Kalidhay Park Center",
+    distance: "1.2 km",
+    capacity: 120,
+    slots: 0,
+    status: "full",
+    phone: "+639189876543",
+    coordinate: { latitude: 10.3195, longitude: 123.9211 },
+  },
+  {
+    id: "center-3",
+    name: "Mabolo Elementary School",
+    distance: "1.5 km",
+    capacity: 180,
+    slots: 60,
+    status: "open",
+    phone: "+639167777888",
+    coordinate: { latitude: 10.3147, longitude: 123.9192 },
+  },
+];
+
+const REPORT_TYPES = ["Flooding", "Water Level", "Road Closure", "Other"];
+const RECENT_REPORTS = [
+  {
+    id: "report-1",
+    type: "Flooding",
+    location: "Sitio San Vicente",
+    timestamp: "2 hours ago",
+    status: "Under Review",
+  },
+  {
+    id: "report-2",
+    type: "Water Level",
+    location: "Sitio Magtalisay",
+    timestamp: "Yesterday",
+    status: "Verified",
+  },
+];
+
+const SETTINGS_ITEMS = [
+  {
+    id: "notifications",
+    title: "Alert Preferences",
+    description: "Manage notification types and frequency",
+    icon: "notifications",
+    section: "Notifications",
+  },
+  {
+    id: "locations",
+    title: "Monitored Locations",
+    description: "Manage your tracked areas",
+    icon: "map",
+    section: "Location & Map",
+  },
+  {
+    id: "language",
+    title: "Language",
+    description: "English (US)",
+    icon: "language",
+    section: "App Settings",
+  },
+  {
+    id: "privacy",
+    title: "Privacy & Security",
+    description: "Manage data and permissions",
+    icon: "lock-closed",
+    section: "App Settings",
+  },
+  {
+    id: "help",
+    title: "Help & Documentation",
+    description: "User guides and troubleshooting",
+    icon: "help-circle",
+    section: "Support",
+  },
+];
+
+const NAV_ROUTE = [
+  { latitude: 10.3165, longitude: 123.9176 },
+  { latitude: 10.3172, longitude: 123.9186 },
+  { latitude: 10.3183, longitude: 123.9197 },
+];
+const NAV_ALT_ROUTE = [
+  { latitude: 10.3165, longitude: 123.9176 },
+  { latitude: 10.3169, longitude: 123.9161 },
+  { latitude: 10.3186, longitude: 123.9158 },
+];
+const NAV_STEPS = [
+  { id: "step-1", text: "Turn left onto Evacuation Road", distance: "150 m" },
+  { id: "step-2", text: "Destination will be on your right", distance: "50 m" },
+];
+
+const openDirections = (coordinate, label = "Destination") => {
+  const { latitude, longitude } = coordinate;
+  const url =
+    Platform.OS === "ios"
+      ? `http://maps.apple.com/?daddr=${latitude},${longitude}`
+      : `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}&travelmode=walking`;
+  Linking.openURL(url);
+};
+
+const callCenter = (phone) => {
+  if (!phone) return;
+  Linking.openURL(`tel:${phone}`);
+};
+
+const getStatusColor = (status) => {
+  switch (status?.toUpperCase()) {
+    case "SAFE":
+    case "NORMAL":
+      return "#4ade80";
+    case "ADVISORY":
+      return "#fbbf24";
+    case "WARNING":
+      return "#f97316";
+    case "CRITICAL":
+      return "#ef4444";
+    default:
+      return "#94a3b8";
+  }
+};
+
+// Animated Water Wave Component for Sensor Gauge (Mobile version)
+const WaterWave = ({ color, fillPercentage }) => {
+  const rotation1 = React.useRef(new Animated.Value(0)).current;
+  const rotation2 = React.useRef(new Animated.Value(0)).current;
+  const rotation3 = React.useRef(new Animated.Value(0)).current;
+
+  // Realism colors: Body is always liquid blue, but the surface/shimmer represents the status.
+  const LIQUID_BODY = "#0369a1"; // Deep Cyan-Blue
+  const LIQUID_DEPTH = "#075985"; // Darker Navy-Blue
+
+  React.useEffect(() => {
+    const startAnimation = (val, duration) => {
+      Animated.loop(
+        Animated.timing(val, {
+          toValue: 1,
+          duration: duration,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    };
+
+    startAnimation(rotation1, 4500); // Slightly faster
+    startAnimation(rotation2, 9000); // Slower counter-wave
+    startAnimation(rotation3, 3000); // Fast shimmer
+  }, []);
+
+  const spin1 = rotation1.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  const spin2 = rotation2.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '-360deg'],
+  });
+
+  const spin3 = rotation3.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  // Calculate the base top position (0% fill is top: '100%', 100% fill is top: '0%')
+  const baseTop = 100 - fillPercentage;
+
+  return (
+    <View style={{ height: '100%', width: '100%', position: 'absolute', bottom: 0, overflow: 'hidden' }}>
+      {/* 
+        Solid Body Base (Liquid realism color)
+      */}
+      <View style={{
+        position: 'absolute',
+        top: `${baseTop}%`,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: LIQUID_BODY,
+        marginTop: 15, // Gap for wave peak transition
+      }} />
+
+      {/* Surface Depth Color Layer (Darker base) */}
+      <Animated.View style={{
+        position: 'absolute',
+        top: `${baseTop}%`,
+        marginTop: -385,
+        left: -175,
+        width: 450,
+        height: 450,
+        borderRadius: 185,
+        backgroundColor: LIQUID_DEPTH,
+        opacity: 0.5,
+        transform: [{ rotate: spin2 }]
+      }} />
+
+      {/* STATUS WAVE LAYER (This represents the actual advisory level) */}
+      <Animated.View style={{
+        position: 'absolute',
+        top: `${baseTop}%`,
+        marginTop: -390,
+        left: -175,
+        width: 450,
+        height: 450,
+        borderRadius: 180,
+        backgroundColor: color, // Shows the advisory/warning color
+        opacity: 0.9,
+        transform: [{ rotate: spin1 }]
+      }} />
+
+      {/* Shimmer Highlight (Using status color tinted white) */}
+      <Animated.View style={{
+        position: 'absolute',
+        top: `${baseTop}%`,
+        marginTop: -395,
+        left: -165,
+        width: 450,
+        height: 450,
+        borderRadius: 175,
+        backgroundColor: color === "#fbbf24" ? 'rgba(255,255,150,0.3)' : 'rgba(255,255,255,0.3)',
+        transform: [{ rotate: spin3 }]
+      }} />
+
+      {/* Subtle Bottom Realism Glow */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.2)']}
+        style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '40%' }}
+      />
+    </View>
+  );
+};
+
+const ALERTS = [
+  {
+    id: "alert-1",
+    title: "Medium Risk Alert",
+    description: "Water level rising in Sitio Magtalisay. Monitor conditions closely.",
+    status: "active",
+    severity: "medium",
+    location: "Sitio Magtalisay",
+    timestamp: "15 minutes ago",
+    actions: "Stay prepared and avoid low-lying roads.",
+  },
+  {
+    id: "alert-2",
+    title: "Weather Update",
+    description: "Heavy rainfall expected in the next 2 hours. Stay alert.",
+    status: "active",
+    severity: "low",
+    location: "City-wide",
+    timestamp: "1 hour ago",
+    actions: "Secure loose items and keep emergency kits ready.",
+  },
+  {
+    id: "alert-3",
+    title: "All Clear",
+    description: "Water levels have returned to normal in Sitio San Vicente.",
+    status: "resolved",
+    severity: "low",
+    location: "Sitio San Vicente",
+    timestamp: "3 hours ago",
+    actions: "Continue monitoring updates in the app.",
+  },
+  {
+    id: "alert-4",
+    title: "High Risk - Evacuate Now",
+    description: "Immediate evacuation required for low-lying areas.",
+    status: "active",
+    severity: "critical",
+    location: "Sitio Laray Holy Name",
+    timestamp: "5 hours ago",
+    actions: "Proceed to designated evacuation centers immediately.",
+  },
+];
+
+const PrimaryButton = ({ label, onPress, disabled, style }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  return (
+    <TouchableOpacity
+      activeOpacity={0.8}
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        disabled ? styles.buttonDisabled : null,
+        { width: "100%" }
+      ]}
+    >
+      <LinearGradient
+        colors={theme.brandGradient}
+        style={[
+          styles.primaryButton,
+          disabled && styles.primaryButtonDisabled,
+          style,
+          { width: "100%" }
+        ]}
+      >
+        <Text style={styles.primaryButtonText}>{label}</Text>
+        <Ionicons name="arrow-forward" size={18} color="#fff" />
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+};
+
+const SecondaryButton = ({ label, onPress, style, textStyle }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  return (
+    <TouchableOpacity style={[styles.secondaryButton, style]} onPress={onPress}>
+      <Text style={[styles.secondaryButtonText, textStyle]}>{label}</Text>
+    </TouchableOpacity>
+  );
+};
+
+const Card = ({ children, style }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  return (
+    <View style={[styles.card, style]}>{children}</View>
+  );
+};
+
+const StepHeader = ({ step }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  return (
+    <View style={styles.stepHeader}>
+      <Text style={styles.stepLabel}>Step {step} of {STEPS}</Text>
+      <View style={styles.progressTrack}>
+        {Array.from({ length: STEPS }).map((_, index) => (
+          <View
+            key={`step-${index}`}
+            style={[
+              styles.progressSegment,
+              index < step ? styles.progressActive : styles.progressInactive,
+            ]}
+          />
+        ))}
+      </View>
+    </View>
+  );
+};
+
+const ScreenLayout = ({ step, children }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  const bottomInset = Platform.OS === "android" ? 36 : 12;
+  const headerPaddingTop = Platform.OS === "android" ? 16 : 14;
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      {Platform.OS === "android" ? (
+        <View style={[styles.statusBarSpacer, { height: topInset }]} />
+      ) : null}
+      <LinearGradient
+        colors={theme.brandGradient}
+        style={[styles.headerGradient, { paddingTop: headerPaddingTop }]}
+      >
+        <StepHeader step={step} />
+      </LinearGradient>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={{ flex: 1 }}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.content,
+            { paddingBottom: 40 + bottomInset },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {children}
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+};
+
+const LoadingScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      navigation.replace("Landing");
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [navigation]);
+
+  return (
+    <SafeAreaView style={styles.loadingContainer}>
+      <View style={styles.loadingContent}>
+        <Image source={LOGO} style={styles.loadingLogo} />
+      </View>
+    </SafeAreaView>
+  );
+};
+
+// Premium Welcome Alert Modal Component
+const WelcomeAlertModal = ({ visible, userName, onDismiss }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const firstName = userName?.split(' ')[0] || "User";
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.welcomeAlertCard}>
+          <View style={styles.welcomeAlertIconContainer}>
+            <LinearGradient
+              colors={['#10b981', '#059669']}
+              style={styles.welcomeAlertIconGradient}
+            >
+              <Ionicons name="checkmark" size={40} color="#fff" />
+            </LinearGradient>
+          </View>
+
+          <Text style={styles.welcomeAlertTitle}>Welcome Back!</Text>
+          <Text style={styles.welcomeAlertGreeting}>Great to see you, {firstName}.</Text>
+          <Text style={styles.welcomeAlertMessage}>
+            The system is fully operational and monitoring for your safety.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.welcomeAlertButton}
+            onPress={onDismiss}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#74C5E6', '#3490dc']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.welcomeAlertButtonGradient}
+            >
+              <Text style={styles.welcomeAlertButtonText}>GET STARTED</Text>
+              <Ionicons name="arrow-forward" size={18} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// Premium Logout Confirmation Modal Component
+const LogoutConfirmationModal = ({ visible, onConfirm, onCancel }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  return (
+    <Modal
+      transparent
+      visible={visible}
+      animationType="fade"
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.logoutAlertCard}>
+          <View style={styles.logoutAlertIconContainer}>
+            <LinearGradient
+              colors={['#ef4444', '#dc2626']}
+              style={styles.welcomeAlertIconGradient}
+            >
+              <Ionicons name="log-out-outline" size={40} color="#fff" />
+            </LinearGradient>
+          </View>
+
+          <Text style={styles.welcomeAlertTitle}>Log Out?</Text>
+          <Text style={styles.welcomeAlertMessage}>
+            Are you sure you want to end your session? You will be redirected to the landing page.
+          </Text>
+
+          <View style={styles.logoutButtonRow}>
+            <TouchableOpacity
+              style={[styles.logoutActionButton, { backgroundColor: 'rgba(148, 163, 184, 0.1)' }]}
+              onPress={onCancel}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.logoutButtonText, { color: '#94a3b8' }]}>CANCEL</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.logoutActionButton}
+              onPress={onConfirm}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#ef4444', '#dc2626']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.logoutButtonGradient}
+              >
+                <Text style={styles.logoutButtonText}>LOG OUT</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
+// Premium Edit Profile Modal Component
+const EditProfileModal = ({ visible, userData, onSave, onCancel, onPickImage, selectedImage, avatarTimestamp }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const [fullName, setFullName] = useState(userData?.full_name || "");
+  const [phone, setPhone] = useState(userData?.phone || "");
+  const [email, setEmail] = useState(userData?.email || "");
+
+  useEffect(() => {
+    if (visible) {
+      setFullName(userData?.full_name || "");
+      setPhone(userData?.phone || "");
+      setEmail(userData?.email || "");
+    }
+  }, [visible, userData]);
+
+  return (
+    <Modal transparent visible={visible} animationType="slide">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalOverlay}
+      >
+        <TouchableWithoutFeedback onPress={onCancel}>
+          <View style={styles.modalOverlayBackground} />
+        </TouchableWithoutFeedback>
+        <View style={styles.editProfileCard}>
+          <View style={styles.editProfileHeader}>
+            <Text style={styles.editProfileTitle}>Edit Profile</Text>
+            <TouchableOpacity onPress={onCancel}>
+              <Ionicons name="close" size={24} color={theme.textPrimary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.editProfileAvatarSection}>
+            <TouchableOpacity style={styles.editProfileAvatar} onPress={onPickImage}>
+              {selectedImage ? (
+                <Image
+                  source={{ uri: selectedImage.uri }}
+                  style={{ width: '100%', height: '100%', borderRadius: 45 }}
+                />
+              ) : userData?.avatar_url ? (
+                <Image
+                  source={{ uri: `http://172.16.17.33:5000${userData.avatar_url}?t=${avatarTimestamp}` }}
+                  style={{ width: '100%', height: '100%', borderRadius: 45 }}
+                />
+              ) : (
+                <View style={[styles.editProfileAvatarPlaceholder, { backgroundColor: theme.primary }]}>
+                  <Text style={styles.editProfileAvatarInitial}>
+                    {(userData?.full_name || "U")[0].toUpperCase()}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.editProfileCameraIcon}>
+                <Ionicons name="camera" size={14} color="white" />
+              </View>
+            </TouchableOpacity>
+            <Text style={styles.editProfileAvatarLabel}>
+              {selectedImage ? "Image selected - tap to change" : "Tap to change photo"}
+            </Text>
+          </View>
+
+          <View style={styles.editProfileForm}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>FULL NAME</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="person-outline" size={18} color={theme.textSecondary} />
+                <TextInput
+                  style={styles.textInput}
+                  value={fullName}
+                  onChangeText={setFullName}
+                  placeholder="Enter your full name"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>PHONE NUMBER</Text>
+              <View style={styles.inputContainer}>
+                <Ionicons name="call-outline" size={18} color={theme.textSecondary} />
+                <TextInput
+                  style={styles.textInput}
+                  value={phone}
+                  onChangeText={setPhone}
+                  placeholder="Enter phone number"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                />
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>EMAIL ADDRESS (READ ONLY)</Text>
+              <View style={[styles.inputContainer, { opacity: 0.6, backgroundColor: 'transparent' }]}>
+                <Ionicons name="mail-outline" size={18} color={theme.textSecondary} />
+                <TextInput
+                  style={styles.textInput}
+                  value={email}
+                  editable={false}
+                  placeholder="Email"
+                  placeholderTextColor={theme.textSecondary}
+                />
+              </View>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.profileSaveButton}
+            onPress={() => onSave({ full_name: fullName, phone: phone })}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={['#74C5E6', '#3490dc']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.profileSaveButtonGradient}
+            >
+              <Text style={styles.profileSaveButtonText}>SAVE CHANGES</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
+const LoginScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [userData, setUserData] = useState(null);
+
+  const onLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter both email and password.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch("http://172.16.17.33:5000/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: email, password: password }),
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        await AsyncStorage.setItem('userToken', data.token);
+        await AsyncStorage.setItem('userData', JSON.stringify(data.user));
+
+        if (data.user.must_change_password) {
+          navigation.replace("ChangePassword");
+        } else {
+          setUserData(data.user);
+          setShowWelcome(true);
+        }
+      } else {
+        Alert.alert("Login Failed", data.error || "Invalid credentials.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Could not connect to server. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleWelcomeDismiss = () => {
+    setShowWelcome(false);
+    navigation.replace("MainDrawer");
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <WelcomeAlertModal
+        visible={showWelcome}
+        userName={userData?.full_name || userData?.name}
+        onDismiss={handleWelcomeDismiss}
+      />
+      <View style={styles.landingPage}>
+        <View style={styles.landingPageOverlay} />
+        <View style={styles.landingCard}>
+          <Text style={styles.landingTitle}>Admin Access</Text>
+          <Text style={styles.landingCaption}>Secure login for System Administrators</Text>
+
+          <View style={{ width: "100%", marginVertical: 20 }}>
+            <View style={{ backgroundColor: "#1E2A38", borderRadius: 12, padding: 16, borderWidth: 1, borderColor: "rgba(123, 189, 232, 0.15)" }}>
+              <Text style={{ fontSize: 12, color: "#7BBDE8", marginBottom: 6, fontWeight: "700", letterSpacing: 1 }}>
+                EMAIL ADDRESS
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: "#283747",
+                  padding: 12,
+                  borderRadius: 8,
+                  marginBottom: 16,
+                  color: "#ffffff",
+                  fontSize: 14,
+                  borderWidth: 1,
+                  borderColor: "rgba(123, 189, 232, 0.05)"
+                }}
+                placeholder="juan@example.com"
+                placeholderTextColor="#49769F"
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+
+              <Text style={{ fontSize: 12, color: "#7BBDE8", marginBottom: 6, fontWeight: "700", letterSpacing: 1 }}>
+                PASSWORD
+              </Text>
+              <View style={{ position: "relative", justifyContent: "center" }}>
+                <TextInput
+                  style={{
+                    backgroundColor: "#283747",
+                    padding: 12,
+                    borderRadius: 8,
+                    color: "#ffffff",
+                    fontSize: 14,
+                    paddingRight: 40,
+                    borderWidth: 1,
+                    borderColor: "rgba(123, 189, 232, 0.05)"
+                  }}
+                  placeholder="Enter your password"
+                  placeholderTextColor="#49769F"
+                  value={password}
+                  onChangeText={setPassword}
+                  secureTextEntry={!showPassword}
+                />
+                <TouchableOpacity
+                  style={{ position: "absolute", right: 12 }}
+                  onPress={() => setShowPassword(!showPassword)}
+                >
+                  <Ionicons
+                    name={showPassword ? "eye-off" : "eye"}
+                    size={20}
+                    color="#64748b"
+                  />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.landingSecondary}
+            onPress={onLogin}
+            disabled={loading}
+          >
+            <Text style={styles.landingSecondaryText}>{loading ? "Authenticating..." : "Sign In"}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.landingSecondary, { marginTop: 12, backgroundColor: "transparent", borderColor: "rgba(255, 255, 255, 0.2)" }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.landingSecondaryText}>Cancel</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const ChangePasswordScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const onChangePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      Alert.alert("Error", "Please fill in all fields.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const storedUser = await AsyncStorage.getItem('userData');
+      const user = JSON.parse(storedUser);
+
+      const response = await fetch("http://172.16.17.33:5000/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.id,
+          new_password: newPassword
+        }),
+      });
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert("Success", "Password changed successfully!", [
+          { text: "OK", onPress: () => navigation.replace("MainDrawer") }
+        ]);
+      } else {
+        Alert.alert("Error", data.error || "Failed to update password.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Could not connect to server.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ImageBackground source={LANDING_BG} style={styles.landingPage}>
+        <View style={styles.landingPageOverlay} />
+        <View style={styles.landingCard}>
+          <Text style={styles.landingTitle}>Security Update</Text>
+          <Text style={styles.landingCaption}>Please set a new password for your account.</Text>
+
+          <View style={{ width: "100%", marginVertical: 20 }}>
+            <View style={{ backgroundColor: "rgba(255,255,255,0.9)", borderRadius: 12, padding: 16 }}>
+
+              <Text style={{ fontSize: 12, color: "#64748b", marginBottom: 4, fontWeight: "600" }}>
+                New Password
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: "#f1f5f9",
+                  padding: 12,
+                  borderRadius: 8,
+                  marginBottom: 16,
+                  color: "#0f172a",
+                  fontSize: 16
+                }}
+                placeholder="Enter new password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+              />
+
+              <Text style={{ fontSize: 12, color: "#64748b", marginBottom: 4, fontWeight: "600" }}>
+                Confirm Password
+              </Text>
+              <TextInput
+                style={{
+                  backgroundColor: "#f1f5f9",
+                  padding: 12,
+                  borderRadius: 8,
+                  color: "#0f172a",
+                  fontSize: 16
+                }}
+                placeholder="Confirm new password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry
+              />
+            </View>
+          </View>
+
+          <PrimaryButton
+            label={loading ? "Updating..." : "Update Password"}
+            onPress={onChangePassword}
+            disabled={loading}
+          />
+        </View>
+      </ImageBackground>
+    </SafeAreaView>
+  );
+};
+
+// Animated Particles for Landing Background
+const FloatingParticles = () => {
+  const { width, height } = useWindowDimensions();
+  const [particles, setParticles] = useState([]);
+
+  useEffect(() => {
+    const colors = ['#90CDF4', '#63B3ED', '#4299E1', '#E2E8F0', '#CBD5E1'];
+    const newParticles = Array.from({ length: 30 }).map((_, i) => ({
+      id: i,
+      delay: Math.random() * 5000,
+      startX: Math.random() * width,
+      startY: Math.random() * height + height / 2,
+      size: Math.random() * 8 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      duration: Math.random() * 8000 + 12000,
+    }));
+    setParticles(newParticles);
+  }, [width, height]);
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {particles.map((p) => (
+        <Particle
+          key={p.id}
+          p={p}
+          height={height}
+        />
+      ))}
+    </View>
+  );
+};
+
+const Particle = ({ p, height }) => {
+  const translateY = useRef(new Animated.Value(0)).current;
+  const opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Stagger start
+    const timeout = setTimeout(() => {
+      Animated.loop(
+        Animated.parallel([
+          Animated.timing(translateY, {
+            toValue: -height * 1.5,
+            duration: p.duration,
+            easing: Easing.linear,
+            useNativeDriver: true,
+          }),
+          Animated.sequence([
+            Animated.timing(opacity, { toValue: Math.random() * 0.5 + 0.2, duration: p.duration * 0.2, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: Math.random() * 0.5 + 0.2, duration: p.duration * 0.6, useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0, duration: p.duration * 0.2, useNativeDriver: true })
+          ])
+        ])
+      ).start();
+    }, p.delay);
+
+    return () => clearTimeout(timeout);
+  }, []);
+
+  return (
+    <Animated.View
+      style={{
+        position: 'absolute',
+        left: p.startX,
+        top: p.startY,
+        width: p.size,
+        height: p.size,
+        borderRadius: p.size / 2,
+        backgroundColor: p.color,
+        opacity: opacity,
+        transform: [{ translateY }],
+        shadowColor: p.color,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.8,
+        shadowRadius: p.size,
+        elevation: 2,
+      }}
+    />
+  );
+};
+
+const LandingScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  return (
+    <SafeAreaView style={styles.landingContainerFixed}>
+      <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+        <FloatingParticles />
+        <View style={{ flex: 1, paddingHorizontal: 24, paddingVertical: 10, justifyContent: 'space-between' }}>
+
+          {/* Center Content */}
+          <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 40, flex: 1 }}>
+            <Image source={LOGO} style={styles.landingLogo} />
+
+            <View style={{ alignItems: 'center', width: '100%', marginBottom: 10, flexShrink: 1 }}>
+              <Text style={styles.heroText} adjustsFontSizeToFit numberOfLines={1}>Monitor.</Text>
+              <Text style={styles.heroText} adjustsFontSizeToFit numberOfLines={1}>Alert.</Text>
+              <Text style={[styles.heroText, { color: '#74C5E6' }]} adjustsFontSizeToFit numberOfLines={1}>StaySafe.</Text>
+            </View>
+
+            <Text style={styles.heroSubText}>
+              State-of-the-art IoT monitoring system{"\n"}for real-time flood intelligence.
+            </Text>
+          </View>
+
+          {/* Bottom Buttons */}
+          <View style={{ width: '100%', paddingBottom: 80, marginTop: 20 }}>
+            <TouchableOpacity
+              style={styles.btnExplore}
+              onPress={() => navigation.navigate("Welcome")}
+            >
+              <Text style={styles.btnExploreText}>Explore Features</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.btnAdmin}
+              onPress={() => navigation.navigate("Login")}
+            >
+              <Text style={styles.btnAdminText}>Login</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const FeatureRow = ({ icon, title, text, tint }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  return (
+    <Card style={styles.featureCard}>
+      <View style={[styles.iconBadge, { backgroundColor: tint }]}>
+        {icon}
+      </View>
+      <View style={styles.featureText}>
+        <Text style={styles.featureTitle}>{title}</Text>
+        <Text style={styles.featureSubtitle}>{text}</Text>
+      </View>
+      <Ionicons name="checkmark-circle" size={20} color="#3aa655" />
+    </Card>
+  );
+};
+
+const InfoNote = ({ text }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  return (
+    <Card style={styles.infoNote}>
+      <Text style={styles.infoNoteText}>{text}</Text>
+    </Card>
+  );
+};
+
+const WelcomeScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  return (
+    <ScreenLayout step={1}>
+      <ImageBackground
+        source={LANDING_IMAGE}
+        style={styles.landingHero}
+        imageStyle={styles.landingImage}
+      >
+        <View style={styles.landingOverlay} />
+        <View style={styles.landingContent}>
+          <View style={styles.heroIcon}>
+            <Ionicons name="notifications" size={28} color="#ffffff" />
+          </View>
+          <Text style={styles.landingTitle}>Welcome to Flood Monitor</Text>
+          <Text style={styles.landingSubtitle}>
+            Real-time monitoring system for flood alerts, evacuation routes, and
+            community reporting.
+          </Text>
+        </View>
+      </ImageBackground>
+
+      <View style={styles.sectionSpacing}>
+        <FeatureRow
+          icon={<Ionicons name="flash" size={18} color="#74C5E6" />}
+          title="Real-Time Alerts"
+          text="Get instant notifications about flood risks in your area"
+          tint="#34495E"
+        />
+        <FeatureRow
+          icon={<Feather name="map" size={18} color="#7a2cf3" />}
+          title="Evacuation Routes"
+          text="Access safe routes and evacuation centers nearby"
+          tint="#34495E"
+        />
+        <FeatureRow
+          icon={<Ionicons name="people" size={18} color="#20b26b" />}
+          title="Community Reports"
+          text="Help monitor conditions by reporting what you observe"
+          tint="#34495E"
+        />
+      </View>
+
+      <View style={styles.footer}>
+        <PrimaryButton label="Continue" onPress={() => navigation.navigate("Account")} />
+      </View>
+    </ScreenLayout>
+  );
+};
+
+const AccountScreen = ({ navigation, form, setForm }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const [error, setError] = useState("");
+
+  const onContinue = () => {
+    if (!form.fullName || !form.email || !form.phone) {
+      setError("Please complete all fields.");
+      return;
+    }
+    setError("");
+    navigation.navigate("Location");
+  };
+  const isDisabled = !form.fullName || !form.email || !form.phone;
+
+  return (
+    <ScreenLayout step={2}>
+      <ImageBackground
+        source={ACCOUNT_IMAGE}
+        style={styles.landingHero}
+        imageStyle={styles.landingImage}
+      >
+        <View style={styles.landingOverlay} />
+        <View style={styles.landingContent}>
+          <View style={styles.heroIcon}>
+            <Ionicons name="person" size={26} color="#ffffff" />
+          </View>
+          <Text style={styles.landingTitle}>Create Your Account</Text>
+          <Text style={styles.landingSubtitle}>
+            We need some basic information to get started
+          </Text>
+        </View>
+      </ImageBackground>
+
+      <Card style={styles.formCard}>
+        <Text style={styles.inputLabel}>Full Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Juan Dela Cruz"
+          value={form.fullName}
+          onChangeText={(value) => setForm((prev) => ({ ...prev, fullName: value }))}
+        />
+
+        <Text style={styles.inputLabel}>Email Address</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="juan@example.com"
+          value={form.email}
+          onChangeText={(value) => setForm((prev) => ({ ...prev, email: value }))}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+
+        <Text style={styles.inputLabel}>Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="+63 912 345 6789"
+          value={form.phone}
+          onChangeText={(value) => setForm((prev) => ({ ...prev, phone: value }))}
+          keyboardType="phone-pad"
+        />
+      </Card>
+
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <View style={styles.footerRow}>
+        <SecondaryButton label="Back" onPress={() => safeGoBack(navigation, "Landing")} />
+        <PrimaryButton label="Continue" onPress={onContinue} disabled={isDisabled} />
+      </View>
+    </ScreenLayout>
+  );
+};
+
+const LocationScreen = ({
+  navigation,
+  selection,
+  setSelection,
+  area,
+  setArea,
+}) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const [error, setError] = useState("");
+  const barangays = useMemo(() => [
+    "Sitio Magtalisay",
+    "Sitio Regla",
+    "Sitio Sinulog",
+    "Sitio Laray Holy Name",
+    "Sitio San Vicente",
+    "Sitio San Isidro",
+    "Sitio Fatima",
+    "Sitio Sindulan",
+    "Sitio Lahing-Lahing (Uno and Dos)",
+  ], []);
+
+  const onContinue = () => {
+    if (!selection) {
+      setError("Please select your location.");
+      return;
+    }
+    setError("");
+    navigation.navigate("Notifications");
+  };
+  const isDisabled = !selection;
+
+  return (
+    <ScreenLayout step={3}>
+      <ImageBackground
+        source={LOCATION_IMAGE}
+        style={styles.landingHero}
+        imageStyle={styles.landingImage}
+      >
+        <View style={styles.landingOverlay} />
+        <View style={styles.landingContent}>
+          <View style={styles.heroIcon}>
+            <Ionicons name="location" size={26} color="#ffffff" />
+          </View>
+          <Text style={styles.landingTitle}>Select Your Location</Text>
+          <Text style={styles.landingSubtitle}>
+            Choose your area to receive relevant alerts
+          </Text>
+        </View>
+      </ImageBackground>
+
+      <View style={styles.sectionSpacing}>
+        {barangays.map((item) => {
+          const selected = selection === item;
+          return (
+            <TouchableOpacity
+              key={item}
+              style={[styles.optionRow, selected && styles.optionSelected]}
+              onPress={() => setSelection(item)}
+            >
+              <View style={styles.optionIcon}>
+                <Ionicons
+                  name="location-outline"
+                  size={18}
+                  color={selected ? "#283747" : "#6b7a90"}
+                />
+              </View>
+              <Text style={[styles.optionText, selected && styles.optionTextSelected]}>
+                {item}
+              </Text>
+              <Ionicons
+                name={selected ? "radio-button-on" : "radio-button-off"}
+                size={20}
+                color={selected ? "#74C5E6" : "#c7d0de"}
+              />
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+
+      <InfoNote text="Note: You can change your monitored locations anytime in Settings." />
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      <View style={styles.footerRow}>
+        <SecondaryButton label="Back" onPress={() => safeGoBack(navigation, "Landing")} />
+        <PrimaryButton label="Continue" onPress={onContinue} disabled={isDisabled} />
+      </View>
+    </ScreenLayout>
+  );
+};
+
+const NotificationsScreen = ({ navigation, toggles, setToggles, form, selection }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const onToggle = (key) => (value) =>
+    setToggles((prev) => ({ ...prev, [key]: value }));
+
+  const onFinish = async () => {
+    try {
+      const response = await fetch("http://172.16.17.33:5000/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          full_name: form.fullName, // Passed from App.js state
+          email: form.email,
+          phone: form.phone,
+          barangay: selection, // Passed from App.js state
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert(
+          "Account Created Successfully!",
+          data.message || "We have sent your login credentials to your email.",
+          [
+            {
+              text: "OK, Login Now",
+              onPress: () => navigation.replace("Login"),
+            },
+          ]
+        );
+      } else {
+        if (data.error === "Email already registered") {
+          Alert.alert("Account Exists", "This email is already registered. Please log in.");
+          navigation.navigate("Landing");
+        } else {
+          Alert.alert("Registration Failed", data.error || "Something went wrong.");
+        }
+      }
+    } catch (error) {
+      Alert.alert("Error", "Could not connect to the server. Please try again.");
+      console.error(error);
+    }
+  };
+
+  return (
+    <ScreenLayout step={4}>
+      <ImageBackground
+        source={NOTIFY_IMAGE}
+        style={styles.landingHero}
+        imageStyle={styles.landingImage}
+      >
+        <View style={styles.landingOverlay} />
+        <View style={styles.landingContent}>
+          <View style={styles.heroIcon}>
+            <Ionicons name="notifications" size={26} color="#ffffff" />
+          </View>
+          <Text style={styles.landingTitle}>Enable Notifications</Text>
+          <Text style={styles.landingSubtitle}>
+            Stay informed with real-time flood alerts
+          </Text>
+        </View>
+      </ImageBackground>
+
+      <View style={styles.sectionSpacing}>
+        <Card style={[styles.toggleCard, styles.toggleCritical]}>
+          <View style={styles.toggleHeader}>
+            <View style={[styles.iconBadge, { backgroundColor: "#ffe3e3" }]}>
+              <MaterialCommunityIcons
+                name="alert-circle"
+                size={18}
+                color="#d63b2c"
+              />
+            </View>
+            <View style={styles.toggleText}>
+              <Text style={styles.toggleTitle}>Critical Alerts</Text>
+              <Text style={styles.toggleSubtitle}>
+                Immediate evacuation warnings and high-risk situations
+              </Text>
+              <Text style={styles.toggleNote}>Always Enabled</Text>
+            </View>
+            <Switch value={true} disabled />
+          </View>
+        </Card>
+
+        <Card style={styles.toggleCard}>
+          <View style={styles.toggleHeader}>
+            <View style={[styles.iconBadge, { backgroundColor: "#34495E" }]}>
+              <Ionicons name="cloud" size={18} color="#74C5E6" />
+            </View>
+            <View style={styles.toggleText}>
+              <Text style={styles.toggleTitle}>Weather Updates</Text>
+              <Text style={styles.toggleSubtitle}>
+                Rainfall forecasts and water level changes
+              </Text>
+              <Text style={styles.toggleNote}>Recommended</Text>
+            </View>
+            <Switch value={toggles.weather} onValueChange={onToggle("weather")} />
+          </View>
+        </Card>
+
+        <Card style={styles.toggleCard}>
+          <View style={styles.toggleHeader}>
+            <View style={[styles.iconBadge, { backgroundColor: "#34495E" }]}>
+              <Ionicons name="people" size={18} color="#74C5E6" />
+            </View>
+            <View style={styles.toggleText}>
+              <Text style={styles.toggleTitle}>Community Reports</Text>
+              <Text style={styles.toggleSubtitle}>
+                Updates from residents in your area
+              </Text>
+              <Text style={styles.toggleNote}>Optional</Text>
+            </View>
+            <Switch
+              value={toggles.community}
+              onValueChange={onToggle("community")}
+            />
+          </View>
+        </Card>
+      </View>
+
+      <InfoNote text="Offline Mode: Critical alerts and evacuation maps are cached for offline access." />
+
+      <View style={styles.footerRow}>
+        <SecondaryButton label="Back" onPress={() => safeGoBack(navigation, "Landing")} />
+        <PrimaryButton label="Get Started" onPress={onFinish} />
+      </View>
+    </ScreenLayout>
+  );
+};
+
+const CustomHeader = ({ navigation, title, subtitle }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const [isNotifVisible, setIsNotifVisible] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [readIds, setReadIds] = useState([]);
+
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+
+  useEffect(() => {
+    loadReadIds();
+  }, []);
+
+  const loadReadIds = async () => {
+    try {
+      const stored = await AsyncStorage.getItem("notif_read_ids");
+      if (stored) setReadIds(JSON.parse(stored));
+    } catch (e) {
+      console.error("Error loading read ids:", e);
+    }
+  };
+
+  const saveReadIds = async (ids) => {
+    try {
+      await AsyncStorage.setItem("notif_read_ids", JSON.stringify(ids));
+    } catch (e) {
+      console.error("Error saving read ids:", e);
+    }
+  };
+
+  const markAsRead = (id) => {
+    if (!readIds.includes(id)) {
+      const newReadIds = [...readIds, id];
+      setReadIds(newReadIds);
+      saveReadIds(newReadIds);
+    }
+  };
+
+  const markAllAsRead = () => {
+    const allIds = notifications.map(n => n.id);
+    const newReadIds = Array.from(new Set([...readIds, ...allIds]));
+    setReadIds(newReadIds);
+    saveReadIds(newReadIds);
+  };
+
+  const unreadCount = notifications.filter(n => !readIds.includes(n.id)).length;
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const [alertsRes, reportsRes] = await Promise.all([
+        fetch("http://172.16.17.33:5000/api/alerts/"),
+        fetch("http://172.16.17.33:5000/api/reports/")
+      ]);
+
+      const alerts = await alertsRes.json();
+      const reports = await reportsRes.json();
+
+      const normalizedAlerts = (alerts || []).map(a => ({
+        ...a,
+        id: `alert-${a.id}`,
+        sourceType: 'announcement',
+        icon: ' megaphone-outline',
+        accent: a.level === 'critical' ? '#e2463b' : a.level === 'warning' ? '#f29339' : '#f5c542',
+        displayType: 'ANNOUNCEMENT'
+      }));
+
+      const normalizedReports = (reports || []).map(r => ({
+        ...r,
+        id: `report-${r.id}`,
+        title: `${r.type} at ${r.location}`,
+        description: r.description,
+        sourceType: 'community_report',
+        icon: 'people-outline',
+        accent: '#74C5E6',
+        displayType: 'COMMUNITY REPORT'
+      }));
+
+      const combined = [...normalizedAlerts, ...normalizedReports].sort((a, b) =>
+        new Date(b.timestamp) - new Date(a.timestamp)
+      );
+
+      setNotifications(combined.slice(0, 5)); // Show only latest 5 for overlay
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching notificationscenter data:", error);
+      setLoading(false);
+    }
+  };
+
+  const toggleNotif = () => {
+    if (!isNotifVisible) {
+      fetchNotifications();
+    }
+    setIsNotifVisible(!isNotifVisible);
+  };
+
+  return (
+    <View style={[styles.dashHeaderRow, { paddingTop: Platform.OS === "android" ? topInset + 16 : 44 }]}>
+      <TouchableOpacity
+        style={styles.burgerButton}
+        onPress={() => {
+          if (navigation && navigation.openDrawer) {
+            navigation.openDrawer();
+          } else {
+            console.warn("Drawer navigation not available");
+          }
+        }}
+      >
+        <Ionicons name="menu" size={26} color={theme.textPrimary} />
+      </TouchableOpacity>
+      <View style={styles.dashHeaderTexts}>
+        <Text style={styles.dashHeaderTitle}>{title}</Text>
+        <Text style={styles.dashHeaderSubtitle} numberOfLines={1} ellipsizeMode="tail">{subtitle}</Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={toggleNotif}
+          style={{ marginRight: 24 }}
+        >
+          <Ionicons name="notifications-outline" size={24} color={theme.textPrimary} />
+          {unreadCount > 0 && (
+            <View style={{ position: 'absolute', top: -2, right: -2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#e2463b', borderWidth: 1.5, borderColor: theme.surface }} />
+          )}
+        </TouchableOpacity>
+      </View>
+
+      <Modal
+        visible={isNotifVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsNotifVisible(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setIsNotifVisible(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }}>
+            <View style={{
+              position: 'absolute',
+              top: Platform.OS === 'android' ? topInset + 60 : 100,
+              right: 16,
+              width: 300,
+              backgroundColor: theme.surface,
+              borderRadius: 16,
+              padding: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.2,
+              shadowRadius: 8,
+              elevation: 5,
+              borderWidth: 1,
+              borderColor: theme.border
+            }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <Text style={{ fontSize: 18, fontWeight: '800', color: theme.textPrimary }}>Recent Activity</Text>
+                {unreadCount > 0 && (
+                  <TouchableOpacity onPress={markAllAsRead}>
+                    <Text style={{ color: '#74C5E6', fontSize: 12, fontWeight: '600' }}>Mark all as read</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {loading ? (
+                <ActivityIndicator size="small" color="#74C5E6" />
+              ) : notifications.length === 0 ? (
+                <Text style={{ color: theme.textSecondary, textAlign: 'center', marginVertical: 20 }}>No new notifications</Text>
+              ) : (
+                notifications.map(item => {
+                  const isRead = readIds.includes(item.id);
+                  return (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 10,
+                        borderBottomWidth: 1,
+                        borderBottomColor: theme.border,
+                        opacity: isRead ? 0.7 : 1
+                      }}
+                      onPress={() => {
+                        setIsNotifVisible(false);
+                        markAsRead(item.id);
+                        if (item.sourceType === 'announcement') {
+                          navigation.navigate("AlertDetail", { alert: item });
+                        } else {
+                          // Navigate to report details if implemented, or just AlertDetail for now
+                          navigation.navigate("AlertDetail", { alert: item });
+                        }
+                      }}
+                    >
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: item.accent + '20', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                        <Ionicons name={item.icon.trim()} size={16} color={item.accent} />
+                        {!isRead && (
+                          <View style={{ position: 'absolute', top: 0, right: 0, width: 8, height: 8, borderRadius: 4, backgroundColor: '#e2463b', borderWidth: 1, borderColor: theme.surface }} />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: theme.textPrimary, fontWeight: isRead ? '500' : '700', fontSize: 13 }} numberOfLines={1}>{item.title || item.type}</Text>
+                        <Text style={{ color: theme.textSecondary, fontSize: 11 }}>{new Date(item.timestamp).toLocaleDateString()}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+
+              <TouchableOpacity
+                style={{ marginTop: 12, alignItems: 'center' }}
+                onPress={() => {
+                  setIsNotifVisible(false);
+                  navigation.navigate("Alerts");
+                }}
+              >
+                <Text style={{ color: '#74C5E6', fontWeight: '700', fontSize: 13 }}>View All Alerts</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </View>
+  );
+};
+
+
+
+// Premium Welcome Banner Component
+const WelcomeBanner = () => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const [userData, setUserData] = useState(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('userData');
+        if (stored) setUserData(JSON.parse(stored));
+      } catch (e) {
+        console.log("Error fetching user data", e);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  const firstName = (userData?.full_name || userData?.name)?.split(' ')[0] || "User";
+  const currentHour = new Date().getHours();
+  const greeting = currentHour < 12 ? "Good Morning" : currentHour < 18 ? "Good Afternoon" : "Good Evening";
+
+  return (
+    <LinearGradient
+      colors={['#1e293b', '#0f172a']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.welcomeBanner}
+    >
+      <View style={styles.welcomeContent}>
+        <View>
+          <Text style={styles.welcomeGreeting}>{greeting},</Text>
+          <Text style={styles.welcomeName}>{firstName}!</Text>
+          <View style={styles.welcomeStatusRow}>
+            <View style={styles.welcomePulse} />
+            <Text style={styles.welcomeStatusText}>System Secure & Operational</Text>
+          </View>
+        </View>
+        <View style={styles.welcomeAvatarContainer}>
+          <LinearGradient
+            colors={['#74C5E6', '#3490dc']}
+            style={styles.welcomeAvatarGradient}
+          >
+            <Text style={styles.welcomeAvatarText}>{firstName[0]}</Text>
+          </LinearGradient>
+        </View>
+      </View>
+
+      {/* Decorative Orbs */}
+      <View style={[styles.welcomeOrb, { top: -20, right: -20, opacity: 0.1 }]} />
+      <View style={[styles.welcomeOrb, { bottom: -30, left: 10, width: 80, height: 80, opacity: 0.05 }]} />
+    </LinearGradient>
+  );
+};
+
+const DashboardScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      const onBackPress = () => {
+        setShowLogoutModal(true);
+        return true;
+      };
+
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+
+      return () => backHandler.remove();
+    }, [])
+  );
+
+  const handleLogout = async () => {
+    setShowLogoutModal(false);
+    await AsyncStorage.removeItem('userToken');
+    await AsyncStorage.removeItem('userData');
+    navigation.replace("Landing");
+  };
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      <LogoutConfirmationModal
+        visible={showLogoutModal}
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
+      <CustomHeader navigation={navigation} title="Home" subtitle="Dashboard & status" />
+      <ScrollView
+        contentContainerStyle={[styles.dashboardScrollContent, { paddingBottom: 40 }]}
+        showsVerticalScrollIndicator={false}
+      >
+        <WelcomeBanner />
+
+        <View style={styles.locationCard}>
+          <View style={styles.locationHeaderRow}>
+            <Text style={styles.locationLabel}>CURRENT LOCATION</Text>
+            <View style={styles.safeBadge}>
+              <View style={styles.safeBadgeDot} />
+              <Text style={styles.safeBadgeText}>SAFE</Text>
+            </View>
+          </View>
+
+          <View style={styles.locationTitleRow}>
+            <Ionicons name="location-outline" size={20} color="#74C5E6" />
+            <Text style={styles.locationTitle}>Barangay San Jose</Text>
+          </View>
+          <Text style={styles.locationTimeText}>Updated just now</Text>
+
+          <View style={styles.riskLevelRow}>
+            <Text style={styles.riskLevelLabel}>Risk Level</Text>
+            <View style={styles.riskLevelBarTrack}>
+              <View style={styles.riskLevelBarFill} />
+            </View>
+            <Text style={styles.riskLevelValue}>LOW</Text>
+          </View>
+        </View>
+
+        <View style={styles.sensorMainCard}>
+          <View style={styles.sensorCardHeader}>
+            <View>
+              <Text style={styles.sensorCardTitle}>Flood Monitoring System</Text>
+              <Text style={styles.sensorCardSubtitle}>Station: Main Street Bridge</Text>
+            </View>
+
+          </View>
+
+          <View style={styles.gaugeContainerOuter}>
+            <View style={styles.gaugeGlassContainer}>
+              <View style={styles.gaugeCapsule}>
+                <WaterWave
+                  color={getStatusColor("ADVISORY")}
+                  fillPercentage={60}
+                />
+
+                {/* Level Markers */}
+                {[4, 3, 2, 1].map((level, i) => (
+                  <React.Fragment key={level}>
+                    <View style={[styles.gaugeLevelMark, { top: `${20 * (i + 1)}%` }]}>
+                      <Text style={styles.gaugeMarkText}>{level}m</Text>
+                    </View>
+                    <View style={[styles.gaugeLevelDivider, { top: `${20 * (i + 1)}%` }]} />
+                  </React.Fragment>
+                ))}
+              </View>
+
+              {/* Glass Reflection Overlays */}
+              <View style={styles.gaugeGlassReflection} />
+              <View style={styles.gaugeGlassShine} />
+            </View>
+
+            <View style={styles.readingContainer}>
+              <View style={styles.gaugeReading}>
+                <Text style={styles.gaugeReadingValue}>2.4</Text>
+                <Text style={styles.gaugeReadingUnit}>m</Text>
+              </View>
+              <View style={styles.statusChip}>
+                <View style={[styles.statusChipDot, { backgroundColor: getStatusColor("ADVISORY") }]} />
+                <Text style={styles.statusChipText}>ADVISORY LEVEL</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.sensorCardFooter}>
+            <View style={styles.footerInfoItem}>
+              <Feather name="info" size={14} color="#64748b" />
+              <Text style={styles.thresholdText}>Normal Range: <Text style={styles.thresholdTextBold}>0–2.5m</Text></Text>
+            </View>
+            <Text style={styles.sensorIdText}>STATION ID: SN-A12B</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const MapScreen = ({ navigation, route }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const [mapType, setMapType] = useState("standard");
+  const bottomInset = Platform.OS === "android" ? 32 : 16;
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  const mapRef = useRef(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [highlightSensor, setHighlightSensor] = useState(false);
+  const shouldAnimate = route?.params?.animate;
+
+  const toggleMapType = () =>
+    setMapType((current) => (current === "standard" ? "hybrid" : "standard"));
+
+  useEffect(() => {
+    if (!mapReady || !shouldAnimate || !mapRef.current) {
+      return;
+    }
+
+    mapRef.current.fitToCoordinates(
+      SENSOR_POINTS.map((sensor) => ({
+        latitude: sensor.latitude,
+        longitude: sensor.longitude,
+      })),
+      {
+        edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
+        animated: true,
+      }
+    );
+    const timer = setTimeout(() => setHighlightSensor(true), 900);
+    return () => clearTimeout(timer);
+  }, [mapReady, shouldAnimate]);
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      {Platform.OS === "android" ? (
+        <View style={[styles.statusBarSpacer, { height: topInset }]} />
+      ) : null}
+      <LinearGradient
+        colors={theme.brandGradient}
+        style={[styles.mapHeaderBar, { paddingTop: 12 }]}
+      >
+        <TouchableOpacity onPress={() => safeGoBack(navigation, "MainDrawer")}>
+          <Ionicons name="arrow-back" size={22} color="#ffffff" />
+        </TouchableOpacity>
+        <Text style={styles.mapHeaderTitle}>Barangay Mabolo</Text>
+        <TouchableOpacity onPress={toggleMapType}>
+          <Ionicons name="layers" size={20} color="#ffffff" />
+        </TouchableOpacity>
+      </LinearGradient>
+      <View style={styles.mapFull}>
+        <MapView
+          ref={mapRef}
+          style={styles.mapFullMap}
+          initialRegion={MABOLO_REGION}
+          mapType={mapType}
+          onMapReady={() => setMapReady(true)}
+        >
+          <Polygon
+            coordinates={MABOLO_BOUNDARY}
+            strokeColor="#74C5E6"
+            fillColor="rgba(42,106,227,0.15)"
+            strokeWidth={2}
+          />
+          <Marker
+            coordinate={{
+              latitude: MABOLO_REGION.latitude,
+              longitude: MABOLO_REGION.longitude,
+            }}
+            pinColor="#74C5E6"
+          />
+          {SENSOR_POINTS.map((sensor) => (
+            <Marker
+              key={sensor.id}
+              coordinate={{ latitude: sensor.latitude, longitude: sensor.longitude }}
+              pinColor={
+                sensor.risk === "low"
+                  ? "#32c26a"
+                  : sensor.risk === "medium"
+                    ? "#f5c542"
+                    : "#f35b5b"
+              }
+              opacity={highlightSensor ? 1 : 0.85}
+            />
+          ))}
+        </MapView>
+      </View>
+      <View style={[styles.mapLegendBar, { paddingBottom: 18 + bottomInset }]}>
+        <Text style={styles.mapLegendTitle}>Sensors</Text>
+        <View style={styles.mapLegendItems}>
+          <View style={styles.mapLegendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#32c26a" }]} />
+            <Text style={styles.legendText}>Low risk</Text>
+          </View>
+          <View style={styles.mapLegendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#f5c542" }]} />
+            <Text style={styles.legendText}>Medium risk</Text>
+          </View>
+          <View style={styles.mapLegendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#f35b5b" }]} />
+            <Text style={styles.legendText}>High risk</Text>
+          </View>
+        </View>
+        <Text style={styles.sensorCount}>
+          4 sensors monitoring Barangay Mabolo
+        </Text>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const AlertsScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const [filter, setFilter] = useState("all");
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  const bottomInset = Platform.OS === "android" ? 32 : 16;
+
+  useEffect(() => {
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchAlerts = async () => {
+    try {
+      const response = await fetch("http://172.16.17.33:5000/api/alerts/");
+      const data = await response.json();
+      const mapped = data.map(a => ({
+        ...a,
+        severity: a.level,
+        location: a.barangay,
+        // format timestamp if needed
+      }));
+      setAlerts(mapped);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+      setLoading(false);
+    }
+  };
+
+  const filteredAlerts = useMemo(() => {
+    if (filter === "all") {
+      return alerts;
+    }
+    if (filter === "active") {
+      return alerts.filter((alert) => alert.status === "active");
+    }
+    if (filter === "resolved") {
+      return alerts.filter((alert) => alert.status === "resolved");
+    }
+    if (filter === "critical") {
+      return alerts.filter((alert) => alert.severity === "critical");
+    }
+    return alerts;
+  }, [filter, alerts]);
+
+  const activeCount = alerts.filter((alert) => alert.status === "active").length;
+  const areaStatus = "Medium Risk";
+  const statusColor = "#f5c542";
+
+  const renderAlertCard = (alert) => {
+    let accent = "#32c26a";
+    let statusLabel = "NORMAL MONITORING";
+
+    if (alert.severity === "critical" || alert.title?.toLowerCase().includes("evacuat")) {
+      accent = "#e2463b"; // RED
+      statusLabel = "ASSISTED EVACUATION";
+    } else if (alert.severity === "warning" || alert.title?.toLowerCase().includes("pre-emptive")) {
+      accent = "#f29339"; // ORANGE
+      statusLabel = "PRE-EMPTIVE EVACUATION";
+    } else if (alert.severity === "advisory" || alert.title?.toLowerCase().includes("advisory")) {
+      accent = "#f5c542"; // YELLOW
+      statusLabel = "ALERT / READY";
+    } else {
+      accent = "#32c26a"; // GREEN
+      statusLabel = "NORMAL MONITORING";
+    }
+
+    // Force Green if resolved
+    if (alert.status === "resolved") {
+      accent = "#32c26a";
+      statusLabel = "NORMAL MONITORING";
+    }
+
+    return (
+      <TouchableOpacity
+        key={alert.id}
+        style={[styles.alertCard, { borderLeftColor: accent }]}
+        onPress={() => navigation.navigate("AlertDetail", { alert })}
+        activeOpacity={0.8}
+      >
+        <View style={styles.alertHeader}>
+          <View style={styles.alertIcon}>
+            <Ionicons
+              name={
+                accent === "#e2463b"
+                  ? "warning"
+                  : accent === "#f29339"
+                    ? "alert"
+                    : accent === "#f5c542"
+                      ? "notifications"
+                      : "checkmark-circle"
+              }
+              size={18}
+              color={accent}
+            />
+          </View>
+          <Text style={styles.alertTitle}>{alert.title}</Text>
+          <View style={[styles.alertBadge, { backgroundColor: accent + "20" }]}>
+            <Text style={[styles.alertBadgeText, { color: accent }]}>
+              {statusLabel}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.alertDescription}>{alert.description}</Text>
+        <View style={styles.alertMeta}>
+          <Text style={styles.alertMetaText}>{alert.location}</Text>
+          <Text style={styles.alertMetaText}>{alert.timestamp}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      <CustomHeader navigation={navigation} title="Alerts" subtitle="Real-time flood and weather updates" />
+      <ScrollView
+        contentContainerStyle={[
+          styles.alertsList,
+          { paddingBottom: 140 + bottomInset },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.filterRow}>
+          {[
+            { id: "all", label: "All" },
+            { id: "active", label: "Active" },
+            { id: "resolved", label: "Resolved" },
+            { id: "critical", label: "Critical" },
+          ].map((item) => (
+            <TouchableOpacity
+              key={item.id}
+              style={[
+                styles.filterPill,
+                filter === item.id && styles.filterPillActive,
+              ]}
+              onPress={() => setFilter(item.id)}
+            >
+              <Text
+                style={[
+                  styles.filterText,
+                  filter === item.id && styles.filterTextActive,
+                ]}
+              >
+                {item.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {loading ? (
+          <View style={{ marginTop: 50 }}>
+            <ActivityIndicator size="large" color="#74C5E6" />
+          </View>
+        ) : (
+          <>
+            <View style={[styles.alertSummary, { backgroundColor: statusColor }]}>
+              <View>
+                <Text style={styles.summaryLabel}>Active Alerts</Text>
+                <Text style={styles.summaryValue}>{activeCount}</Text>
+              </View>
+              <View style={styles.summaryDivider} />
+              <View>
+                <Text style={styles.summaryLabel}>Your Area Status</Text>
+                <Text style={styles.summaryValue}>{areaStatus}</Text>
+              </View>
+            </View>
+            {filteredAlerts.length === 0 ? (
+              <Text style={{ textAlign: "center", marginTop: 20, color: "#64748b" }}>No alerts found</Text>
+            ) : (
+              filteredAlerts.map(renderAlertCard)
+            )}
+          </>
+        )}
+      </ScrollView>
+
+    </SafeAreaView>
+  );
+};
+
+const AlertDetailScreen = ({ route, navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const alert = route?.params?.alert;
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  if (!alert) {
+    return null;
+  }
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      {Platform.OS === "android" ? (
+        <View style={[styles.statusBarSpacer, { height: topInset }]} />
+      ) : null}
+      <LinearGradient colors={theme.brandGradient} style={styles.mapHeaderBar}>
+        <TouchableOpacity onPress={() => safeGoBack(navigation, "Alerts")}>
+          <Ionicons name="arrow-back" size={22} color="#ffffff" />
+        </TouchableOpacity>
+        <Text style={styles.mapHeaderTitle}>Alert Details</Text>
+        <View style={{ width: 22 }} />
+      </LinearGradient>
+      <ScrollView contentContainerStyle={styles.alertDetailContent}>
+        <Card style={styles.alertDetailCard}>
+          <Text style={styles.alertDetailTitle}>{alert.title}</Text>
+          <Text style={styles.alertDetailDescription}>{alert.description}</Text>
+          <View style={styles.alertDetailMeta}>
+            <Text style={styles.alertMetaText}>{alert.location}</Text>
+            <Text style={styles.alertMetaText}>{alert.timestamp}</Text>
+          </View>
+        </Card>
+        <Card style={styles.alertDetailCard}>
+          <Text style={styles.alertDetailLabel}>Recommended Actions</Text>
+          <Text style={styles.alertDetailDescription}>{alert.actions}</Text>
+        </Card>
+        <Card style={styles.alertDetailCard}>
+          <Text style={styles.alertDetailLabel}>Status</Text>
+          <Text style={styles.alertDetailDescription}>
+            {alert.status === "resolved"
+              ? "NORMAL MONITORING"
+              : alert.severity === "critical" || alert.title?.toLowerCase().includes("evacuat")
+                ? "ASSISTED EVACUATION"
+                : alert.severity === "warning" || alert.title?.toLowerCase().includes("pre-emptive")
+                  ? "PRE-EMPTIVE EVACUATION"
+                  : alert.severity === "advisory" || alert.title?.toLowerCase().includes("advisory")
+                    ? "ALERT / READY"
+                    : "NORMAL MONITORING"}
+          </Text>
+        </Card>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const EvacuationScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  const bottomInset = Platform.OS === "android" ? 32 : 16;
+
+  const nearestCenter = EVAC_CENTERS[0];
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      <CustomHeader navigation={navigation} title="Evacuation" subtitle="Safe routes and evacuation centers" />
+      <ScrollView
+        contentContainerStyle={[
+          styles.evacContent,
+          { paddingBottom: 140 + bottomInset },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Card style={styles.routeCard}>
+          <View style={styles.routeHeader}>
+            <Text style={styles.routeTitle}>Nearest Safe Route</Text>
+            <View style={styles.routeBadge}>
+              <Text style={styles.routeBadgeText}>Safe</Text>
+            </View>
+          </View>
+          <Text style={styles.routeDistance}>0.8 km away</Text>
+          <PrimaryButton
+            label="Start Navigation"
+            onPress={() => navigation.navigate("ActiveNavigation", { center: nearestCenter })}
+            style={styles.routeButton}
+          />
+        </Card>
+
+        <Card style={styles.mapCard}>
+          <View style={styles.mapHeader}>
+            <Text style={styles.evacMapTitle}>Evacuation Route Map</Text>
+            <View style={styles.routeStatusPill}>
+              <Text style={styles.routeStatusText}>Safe Route Available</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.mapPreview}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate("EvacuationMap")}
+          >
+            <MapView
+              style={styles.mapPreviewMap}
+              initialRegion={MABOLO_REGION}
+              pitchEnabled={false}
+              rotateEnabled={false}
+              scrollEnabled={false}
+              zoomEnabled={false}
+            >
+              <Polyline coordinates={SAFE_ROUTE} strokeColor="#74C5E6" strokeWidth={4} />
+              <Polygon
+                coordinates={FLOOD_ZONE}
+                strokeColor="#e2463b"
+                fillColor="rgba(226,70,59,0.2)"
+                strokeWidth={2}
+              />
+              {EVAC_CENTERS.map((center) => (
+                <Marker
+                  key={center.id}
+                  coordinate={center.coordinate}
+                  pinColor={center.status === "open" ? "#2fb864" : "#f35b5b"}
+                />
+              ))}
+              <Marker coordinate={USER_LOCATION} pinColor="#74C5E6" />
+            </MapView>
+            <View style={styles.mapPreviewOverlay}>
+              <Text style={styles.mapSubtitle}>Tap to view full route</Text>
+            </View>
+          </TouchableOpacity>
+        </Card>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Evacuation Centers</Text>
+          <Text style={styles.sectionHint}>3 centers nearby</Text>
+        </View>
+
+        {EVAC_CENTERS.map((center) => (
+          <Card key={center.id} style={styles.centerCard}>
+            <View style={styles.centerHeader}>
+              <Text style={styles.centerTitle}>{center.name}</Text>
+              <View
+                style={[
+                  styles.centerStatus,
+                  center.status === "open" ? styles.centerOpen : styles.centerFull,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.centerStatusText,
+                    { color: center.status === "open" ? "#2fb864" : "#d6453a" },
+                  ]}
+                >
+                  {center.status === "open" ? "Open" : "Full"}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.centerDistance}>{center.distance} away</Text>
+            <View style={styles.centerMeta}>
+              <Text style={styles.centerMetaText}>Capacity: {center.capacity}</Text>
+              <Text style={styles.centerMetaText}>
+                Slots: {center.slots} remaining
+              </Text>
+            </View>
+            <View style={styles.centerActions}>
+              <SecondaryButton
+                label="Call"
+                onPress={() => callCenter(center.phone)}
+                style={styles.centerCall}
+                textStyle={styles.centerCallText}
+              />
+              <PrimaryButton
+                label="Navigate"
+                onPress={() => openDirections(center.coordinate, center.name)}
+                disabled={center.status !== "open"}
+                style={styles.centerNav}
+              />
+            </View>
+            {center.status !== "open" ? (
+              <Text style={styles.centerHint}>
+                Center is full. Please use another nearby center.
+              </Text>
+            ) : null}
+          </Card>
+        ))}
+
+        <Card style={styles.offlineNotice}>
+          <Text style={styles.offlineText}>
+            Offline Mode: Evacuation routes are cached and available without
+            internet connection.
+          </Text>
+        </Card>
+      </ScrollView>
+
+    </SafeAreaView>
+  );
+};
+
+const ActiveNavigationScreen = ({ navigation, route }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const center = route?.params?.center ?? EVAC_CENTERS[0];
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  const bottomInset = Platform.OS === "android" ? 32 : 16;
+  const mapRef = useRef(null);
+  const [mapReady, setMapReady] = useState(false);
+
+  useEffect(() => {
+    if (!mapReady || !mapRef.current) {
+      return;
+    }
+
+    mapRef.current.animateToRegion(
+      {
+        latitude: NAV_ROUTE[1].latitude,
+        longitude: NAV_ROUTE[1].longitude,
+        latitudeDelta: 0.004,
+        longitudeDelta: 0.004,
+      },
+      900
+    );
+  }, [mapReady]);
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      {Platform.OS === "android" ? (
+        <View style={[styles.statusBarSpacer, { height: topInset }]} />
+      ) : null}
+      <View style={styles.navHeader}>
+        <TouchableOpacity onPress={() => safeGoBack(navigation, "Evacuate")}>
+          <Ionicons name="arrow-back" size={22} color="#ffffff" />
+        </TouchableOpacity>
+        <View style={styles.navHeaderText}>
+          <Text style={styles.navTitle}>{center.name}</Text>
+          <Text style={styles.navSubtitle}>{center.slots} slots available</Text>
+        </View>
+        <TouchableOpacity onPress={() => callCenter(center.phone)}>
+          <Ionicons name="call" size={20} color="#ffffff" />
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={[
+          styles.navScrollContent,
+          { paddingBottom: 32 + bottomInset },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.navStats}>
+          <View style={styles.navStatItem}>
+            <Ionicons name="time" size={16} color="#74C5E6" />
+            <Text style={styles.navStatText}>12 min</Text>
+          </View>
+          <View style={styles.navStatDivider} />
+          <View style={styles.navStatItem}>
+            <Ionicons name="navigate" size={16} color="#74C5E6" />
+            <Text style={styles.navStatText}>0.8 km</Text>
+          </View>
+        </View>
+
+        <View style={styles.navMapContainer}>
+          <MapView
+            ref={mapRef}
+            style={styles.mapFullMap}
+            initialRegion={MABOLO_REGION}
+            showsUserLocation
+            followsUserLocation
+            showsCompass
+            onMapReady={() => setMapReady(true)}
+          >
+            <Polyline
+              coordinates={NAV_ROUTE}
+              strokeColor="#74C5E6"
+              strokeWidth={5}
+            />
+            <Polyline
+              coordinates={NAV_ALT_ROUTE}
+              strokeColor="#74C5E6"
+              strokeWidth={3}
+              strokeDasharray={[6, 6]}
+            />
+            <Marker coordinate={center.coordinate} pinColor="#e2463b" />
+          </MapView>
+          <View style={styles.navMapOverlay}>
+            <Text style={styles.navOverlayTitle}>Navigating Active</Text>
+            <Text style={styles.navOverlaySubtitle}>Following route...</Text>
+          </View>
+        </View>
+
+        <View style={styles.navDirections}>
+          <Text style={styles.navSectionTitle}>Upcoming Directions</Text>
+          {NAV_STEPS.map((step) => (
+            <Card key={step.id} style={styles.navDirectionCard}>
+              <View style={styles.navDirectionRow}>
+                <Ionicons name="arrow-forward" size={18} color="#74C5E6" />
+                <Text style={styles.navDirectionText}>{step.text}</Text>
+              </View>
+              <Text style={styles.navDirectionMeta}>{step.distance}</Text>
+            </Card>
+          ))}
+        </View>
+
+        <Card style={styles.navSafetyCard}>
+          <Ionicons name="alert-circle" size={18} color="#e09b2f" />
+          <Text style={styles.navSafetyText}>
+            Stay alert and follow evacuation protocols. If conditions worsen,
+            seek immediate shelter.
+          </Text>
+        </Card>
+
+        <View style={styles.navActions}>
+          <TouchableOpacity
+            style={styles.navEndButton}
+            onPress={() => navigation.replace("Evacuate")}
+          >
+            <Text style={styles.navEndText}>End Navigation</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.navReportButton}>
+            <Text style={styles.navReportText}>Report Issue</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const ReportScreen = ({ navigation, userName }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  const bottomInset = Platform.OS === "android" ? 32 : 16;
+  const [selectedType, setSelectedType] = useState("");
+  const [description, setDescription] = useState("");
+  const [photos, setPhotos] = useState([]);
+  const [recentReports, setRecentReports] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
+  const locationLabel = "Barangay San Jose, Cebu City";
+
+  const reporterName = userName || "Anonymous";
+
+
+
+  // ... (in ReportScreen)
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchReports();
+    }, [userName])
+  );
+
+  const fetchReports = async () => {
+    try {
+      const response = await fetch(`http://172.16.17.33:5000/api/reports/?reporter_name=${encodeURIComponent(reporterName)}`);
+      if (response.ok) {
+        const data = await response.json();
+        setRecentReports(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch reports:", error);
+    }
+  };
+
+  const canSubmit = selectedType && description.trim().length > 0;
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append("reporter_name", reporterName);
+      formData.append("type", selectedType);
+      formData.append("location", locationLabel);
+      formData.append("description", description);
+
+      if (photos.length > 0) {
+        const localUri = photos[0];
+        const filename = localUri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : `image`;
+
+        formData.append("image", {
+          uri: localUri,
+          name: filename,
+          type: type,
+        });
+      }
+
+      const response = await fetch("http://172.16.17.33:5000/api/reports/", {
+        method: "POST",
+        headers: {
+          "Accept": "application/json",
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        Alert.alert(
+          "Report submitted",
+          "Your report has been sent to LGU moderators for review."
+        );
+        setSelectedType("");
+        setDescription("");
+        setPhotos([]);
+        fetchReports(); // Refresh list
+        // navigation.replace("Dashboard"); // Stay on screen to see report
+      } else {
+        const errorData = await response.json();
+        Alert.alert("Error", errorData.error || "Failed to submit report.");
+      }
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      Alert.alert("Error", `Network error: ${error.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const pickImage = async (source) => {
+    if (photos.length >= 3) {
+      Alert.alert("Limit reached", "You can upload up to 3 photos.");
+      return;
+    }
+
+    const permission =
+      source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert("Permission needed", "Please allow access to continue.");
+      return;
+    }
+
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync({
+          quality: 0.7,
+          allowsEditing: true,
+        })
+        : await ImagePicker.launchImageLibraryAsync({
+          quality: 0.7,
+          allowsEditing: true,
+          selectionLimit: 1,
+        });
+
+    if (result.canceled || !result.assets?.length) {
+      return;
+    }
+
+    setPhotos((prev) => [...prev, result.assets[0].uri]);
+  };
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      <CustomHeader navigation={navigation} title="Report" subtitle="Help us monitor ground conditions" />
+      <ScrollView
+        contentContainerStyle={[
+          styles.reportContent,
+          { paddingBottom: 140 + bottomInset },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <Card style={styles.reportInfoCard}>
+          <View style={styles.reportInfoHeader}>
+            <Ionicons name="information-circle" size={18} color="#74C5E6" />
+            <Text style={styles.reportInfoTitle}>Community Reporting</Text>
+          </View>
+          <Text style={styles.reportInfoText}>
+            Your reports help us verify conditions and improve our flood
+            monitoring system. All reports are reviewed by LGU moderators.
+          </Text>
+        </Card>
+
+        <View style={styles.reportSection}>
+          <Text style={styles.sectionTitle}>Report Type</Text>
+          <View style={styles.reportTypeGrid}>
+            {REPORT_TYPES.map((type) => {
+              const active = selectedType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.reportTypeChip,
+                    active && styles.reportTypeChipActive,
+                  ]}
+                  onPress={() => setSelectedType(type)}
+                >
+                  <Text
+                    style={[
+                      styles.reportTypeText,
+                      active && styles.reportTypeTextActive,
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={styles.reportSection}>
+          <Text style={styles.sectionTitle}>Location</Text>
+          <Card style={styles.reportLocationCard}>
+            <Ionicons name="location" size={18} color="#74C5E6" />
+            <View style={styles.reportLocationText}>
+              <Text style={styles.reportLocationTitle}>Use Current Location</Text>
+              <Text style={styles.reportLocationSubtitle}>{locationLabel}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+          </Card>
+        </View>
+
+        <View style={styles.reportSection}>
+          <Text style={styles.sectionTitle}>Description</Text>
+          <TextInput
+            style={styles.reportInput}
+            multiline
+            placeholder="Describe what you are observing..."
+            value={description}
+            onChangeText={setDescription}
+          />
+        </View>
+
+        <View style={styles.reportSection}>
+          <Text style={styles.sectionTitle}>Add Photos (Optional)</Text>
+          <View style={styles.reportPhotoRow}>
+            <TouchableOpacity
+              style={styles.reportPhotoButton}
+              onPress={() => pickImage("camera")}
+            >
+              <Ionicons name="camera" size={20} color="#74C5E6" />
+              <Text style={styles.reportPhotoText}>Camera</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.reportPhotoButton}
+              onPress={() => pickImage("gallery")}
+            >
+              <Ionicons name="image" size={20} color="#74C5E6" />
+              <Text style={styles.reportPhotoText}>Gallery</Text>
+            </TouchableOpacity>
+          </View>
+          {photos.length ? (
+            <>
+              <Text style={styles.reportPhotoCount}>
+                {photos.length} photo{photos.length > 1 ? "s" : ""} selected
+              </Text>
+              <View style={styles.reportPreviewRow}>
+                {photos.map((uri, index) => (
+                  <Image
+                    key={`${uri}-${index}`}
+                    source={{ uri }}
+                    style={styles.reportPreviewImage}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
+        </View>
+
+        {submitting ? (
+          <ActivityIndicator size="large" color="#74C5E6" style={{ marginVertical: 20 }} />
+        ) : (
+          <PrimaryButton
+            label="Submit Report"
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            style={styles.reportSubmit}
+          />
+        )}
+
+        <View style={styles.reportSection}>
+          <Text style={styles.sectionTitle}>Your Recent Reports</Text>
+          <View style={styles.reportsList}>
+            {recentReports.map((report) => (
+              <Card key={report.id} style={styles.reportItem}>
+                <View style={styles.reportItemHeader}>
+                  <Text style={styles.reportItemTitle}>{report.type} Report</Text>
+                  <View
+                    style={[
+                      styles.reportStatus,
+                      report.status === "Verified"
+                        ? styles.reportStatusVerified
+                        : styles.reportStatusReview,
+                    ]}
+                  >
+                    <Text style={styles.reportStatusText}>{report.status}</Text>
+                  </View>
+                </View>
+                <Text style={styles.reportItemLocation}>{report.location}</Text>
+                <Text style={styles.reportItemTime}>{report.timestamp}</Text>
+              </Card>
+            ))}
+          </View>
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
+};
+
+const SettingsScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  const bottomInset = Platform.OS === "android" ? 32 : 16;
+  const [offlineReady] = useState(true);
+  const [userData, setUserData] = useState({
+    full_name: "Loading...",
+    email: "Loading...",
+    barangay: "Loading...",
+    phone: "",
+    avatar_url: null
+  });
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [avatarTimestamp, setAvatarTimestamp] = useState(Date.now());
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, []);
+
+  const fetchUserProfile = async () => {
+    try {
+      const storedUser = await AsyncStorage.getItem('userData');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        // Fetch fresh data from API
+        const response = await fetch(`http://172.16.17.33:5000/api/users/${user.id}`);
+        if (response.ok) {
+          const freshData = await response.json();
+          setUserData(freshData);
+          // Update stored data
+          await AsyncStorage.setItem('userData', JSON.stringify(freshData));
+        } else {
+          // Fallback to stored data if offline or error
+          setUserData(prev => ({ ...prev, ...user }));
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    }
+  };
+
+  const onLogout = async () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleLogout = async () => {
+    setShowLogoutModal(false);
+    await AsyncStorage.removeItem('userToken');
+    await AsyncStorage.removeItem('userData');
+    navigation.replace("Landing");
+  };
+
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Sorry, we need camera roll permissions to make this work!');
+      return;
+    }
+
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+
+    if (!result.canceled) {
+      setSelectedImage(result.assets[0]);
+    }
+  };
+
+  const uploadAvatar = async (asset) => {
+    try {
+      const storedUser = await AsyncStorage.getItem('userData');
+      if (!storedUser) return;
+      const user = JSON.parse(storedUser);
+
+      const formData = new FormData();
+      formData.append('image', {
+        uri: asset.uri,
+        name: 'avatar.jpg',
+        type: 'image/jpeg',
+      });
+
+      const response = await fetch(`http://172.16.17.33:5000/api/users/${user.id}/avatar`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        Alert.alert("Success", "Profile picture updated!");
+        fetchUserProfile(); // Refresh data
+      } else {
+        Alert.alert("Upload Failed", data.error || "Could not upload image.");
+      }
+
+    } catch (error) {
+      console.error("Upload error:", error);
+      Alert.alert("Error", "Failed to upload image.");
+    }
+  };
+
+  const handleUpdateProfile = async (updatedData) => {
+    setIsUpdating(true);
+    try {
+      const storedUser = await AsyncStorage.getItem('userData');
+      if (!storedUser) return;
+      const user = JSON.parse(storedUser);
+
+      // 1. Upload image first if one was selected
+      if (selectedImage) {
+        const formData = new FormData();
+        formData.append('image', {
+          uri: selectedImage.uri,
+          name: 'avatar.jpg',
+          type: 'image/jpeg',
+        });
+
+        const avatarResponse = await fetch(`http://172.16.17.33:5000/api/users/${user.id}/avatar`, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+
+        if (!avatarResponse.ok) {
+          const errData = await avatarResponse.json();
+          Alert.alert("Upload Failed", errData.error || "Could not upload image.");
+          setIsUpdating(false);
+          return;
+        }
+      }
+
+      // 2. Update profile details
+      const response = await fetch(`http://172.16.17.33:5000/api/users/${user.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ...updatedData,
+          email: userData.email
+        }),
+      });
+
+      if (response.ok) {
+        Alert.alert("Success", "Profile updated successfully!");
+        setShowEditProfile(false);
+        setSelectedImage(null);
+        setAvatarTimestamp(Date.now()); // Update timestamp to force image refresh
+        fetchUserProfile();
+      } else {
+        const errorData = await response.json();
+        Alert.alert("Update Failed", errorData.error || "Could not update profile.");
+      }
+    } catch (error) {
+      console.error("Update profile error:", error);
+      Alert.alert("Error", "Failed to connect to the server.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const renderItem = (item) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.settingsItem}
+      onPress={() => item.type !== "toggle" && console.log(`Navigate to ${item.id}`)}
+      disabled={item.type === "toggle"}
+    >
+      <Ionicons name={item.icon} size={18} color="#74C5E6" />
+      <View style={styles.settingsItemText}>
+        <Text style={styles.settingsItemTitle}>{item.title}</Text>
+        <Text style={styles.settingsItemSubtitle}>{item.description}</Text>
+      </View>
+      {item.type === "toggle" ? (
+        <Switch
+          value={false}
+          onValueChange={null}
+          trackColor={{ false: "#767577", true: "#74C5E6" }}
+          thumbColor={theme.textPrimary}
+        />
+      ) : (
+        <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
+      )}
+    </TouchableOpacity>
+  );
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      <CustomHeader navigation={navigation} title="Settings" subtitle="Manage your account preferences" />
+      <ScrollView
+        contentContainerStyle={[
+          styles.settingsContent,
+          { paddingBottom: 140 + bottomInset },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+
+        <TouchableOpacity
+          style={styles.profileCard}
+          onPress={() => {
+            setSelectedImage(null); // Clear any old selection
+            setShowEditProfile(true);
+          }}
+          activeOpacity={0.7}
+        >
+          <View style={styles.profileAvatar}>
+            {userData.avatar_url ? (
+              <Image
+                source={{ uri: `http://172.16.17.33:5000${userData.avatar_url}?t=${avatarTimestamp}` }}
+                style={{ width: '100%', height: '100%', borderRadius: 40 }}
+              />
+            ) : (
+              <Ionicons name="person" size={22} color="#ffffff" />
+            )}
+            <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#74C5E6', borderRadius: 10, padding: 4 }}>
+              <Ionicons name="camera" size={12} color="white" />
+            </View>
+          </View>
+          <View style={styles.profileText}>
+            <Text style={styles.profileName}>{userData.full_name || userData.username || "User"}</Text>
+            <Text style={styles.profileEmail}>{userData.email}</Text>
+            <Text style={styles.profileLocation}>{userData.barangay || "Location not set"}</Text>
+            {userData.phone && <Text style={styles.profilePhone}>{userData.phone}</Text>}
+          </View>
+          <Ionicons name="create-outline" size={20} color="#94a3b8" style={{ marginLeft: 'auto' }} />
+        </TouchableOpacity>
+
+        <View style={styles.settingsSection}>
+          <Text style={styles.settingsSectionTitle}>Notifications</Text>
+          {SETTINGS_ITEMS.filter((item) => item.section === "Notifications").map(
+            renderItem
+          )}
+        </View>
+
+        <View style={styles.settingsSection}>
+          <Text style={styles.settingsSectionTitle}>Location & Map</Text>
+          {SETTINGS_ITEMS.filter((item) => item.section === "Location & Map").map(
+            renderItem
+          )}
+        </View>
+
+        <View style={styles.settingsSection}>
+          <Text style={styles.settingsSectionTitle}>App Settings</Text>
+          {SETTINGS_ITEMS.filter((item) => item.section === "App Settings").map(
+            renderItem
+          )}
+        </View>
+
+        <View style={styles.settingsSection}>
+          <Text style={styles.settingsSectionTitle}>Support</Text>
+          {SETTINGS_ITEMS.filter((item) => item.section === "Support").map(
+            renderItem
+          )}
+        </View>
+
+        <Card style={styles.offlineCard}>
+          <View style={styles.offlineHeader}>
+            <View
+              style={[
+                styles.offlineDot,
+                { backgroundColor: offlineReady ? "#2fb864" : "#f5c542" },
+              ]}
+            />
+            <Text style={styles.offlineTitle}>
+              {offlineReady ? "Offline Mode Available" : "Offline Mode Unavailable"}
+            </Text>
+          </View>
+          <Text style={styles.offlineMessage}>
+            Critical data cached for offline access
+          </Text>
+        </Card>
+
+        <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
+          <Ionicons name="log-out" size={18} color="#e2463b" />
+          <Text style={styles.logoutText}>Log Out</Text>
+        </TouchableOpacity>
+
+        <View style={styles.settingsFooter}>
+          <Text style={styles.settingsFooterText}>Flood Monitor v1.0.0</Text>
+          <Text style={styles.settingsFooterText}>Capstone Project 2025</Text>
+        </View>
+        <LogoutConfirmationModal
+          visible={showLogoutModal}
+          onConfirm={handleLogout}
+          onCancel={() => setShowLogoutModal(false)}
+        />
+        <EditProfileModal
+          visible={showEditProfile}
+          userData={userData}
+          onSave={handleUpdateProfile}
+          onCancel={() => {
+            setShowEditProfile(false);
+            setSelectedImage(null);
+          }}
+          onPickImage={pickImage}
+          selectedImage={selectedImage}
+          avatarTimestamp={avatarTimestamp}
+        />
+      </ScrollView>
+
+    </SafeAreaView >
+  );
+};
+
+const EvacuationMapScreen = ({ navigation }) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+
+  const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
+  const bottomInset = Platform.OS === "android" ? 32 : 16;
+
+  return (
+    <SafeAreaView style={styles.dashboardSafe}>
+      {Platform.OS === "android" ? (
+        <View style={[styles.statusBarSpacer, { height: topInset }]} />
+      ) : null}
+      <LinearGradient colors={EVAC_GRADIENT} style={styles.mapHeaderBar}>
+        <TouchableOpacity onPress={() => safeGoBack(navigation, "Evacuate")}>
+          <Ionicons name="arrow-back" size={22} color="#ffffff" />
+        </TouchableOpacity>
+        <Text style={styles.mapHeaderTitle}>Evacuation Route Map</Text>
+        <View style={{ width: 22 }} />
+      </LinearGradient>
+      <View style={styles.mapFull}>
+        <MapView style={styles.mapFullMap} initialRegion={MABOLO_REGION}>
+          <Polyline coordinates={SAFE_ROUTE} strokeColor="#74C5E6" strokeWidth={5} />
+          <Polygon
+            coordinates={FLOOD_ZONE}
+            strokeColor="#e2463b"
+            fillColor="rgba(226,70,59,0.25)"
+            strokeWidth={2}
+          />
+          {EVAC_CENTERS.map((center) => (
+            <Marker
+              key={center.id}
+              coordinate={center.coordinate}
+              pinColor={center.status === "open" ? "#2fb864" : "#f35b5b"}
+              title={center.name}
+            />
+          ))}
+          <Marker coordinate={USER_LOCATION} pinColor="#74C5E6" />
+        </MapView>
+      </View>
+      <View style={[styles.mapLegendBar, { paddingBottom: 18 + bottomInset }]}>
+        <Text style={styles.mapLegendTitle}>Route Status</Text>
+        <View style={styles.mapLegendItems}>
+          <View style={styles.mapLegendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#74C5E6" }]} />
+            <Text style={styles.legendText}>Safe route</Text>
+          </View>
+          <View style={styles.mapLegendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#e2463b" }]} />
+            <Text style={styles.legendText}>Flood zone</Text>
+          </View>
+          <View style={styles.mapLegendItem}>
+            <View style={[styles.legendDot, { backgroundColor: "#2fb864" }]} />
+            <Text style={styles.legendText}>Evac center</Text>
+          </View>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const CustomDrawerContent = (props) => {
+  const { theme } = useTheme();
+  const styles = getStyles(theme);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  const handleLogout = async () => {
+    setShowLogoutModal(false);
+    await AsyncStorage.removeItem('userToken');
+    await AsyncStorage.removeItem('userData');
+    props.navigation.replace("Landing");
+  };
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <DrawerContentScrollView {...props} contentContainerStyle={{ paddingTop: 0 }}>
+        {/* Drawer Header */}
+        <View style={{ padding: 20, paddingTop: 40, borderBottomWidth: 1, borderBottomColor: theme.border }}>
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+              <Image source={LOGO} style={{ width: 40, height: 40, resizeMode: "contain" }} />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: "900", color: theme.textPrimary }} numberOfLines={1}>Flood Monitor</Text>
+                <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: -2 }} numberOfLines={1}>Stay safe, stay informed</Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={() => props.navigation.closeDrawer()} style={{ padding: 8, backgroundColor: theme.badgeBg, borderRadius: 100, marginLeft: 8 }}>
+              <Ionicons name="close" size={20} color={theme.textPrimary} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={{ paddingVertical: 16 }}>
+          {[
+            { label: "Home", icon: "home", route: "Dashboard" },
+            { label: "Alerts", icon: "notifications", route: "Alerts", badge: true },
+            { label: "Evacuate", icon: "map", route: "Evacuate" },
+            { label: "Report", icon: "chatbubble", route: "Report" },
+            { label: "Settings", icon: "settings", route: "Settings" },
+          ].map((item) => {
+            const activeRouteIndex = props.state?.index ?? 0;
+            const activeRouteName = props.state?.routeNames[activeRouteIndex] ?? "Dashboard";
+            const isActive = item.route === activeRouteName;
+
+            return (
+              <TouchableOpacity
+                key={item.label}
+                onPress={() => props.navigation.navigate(item.route)}
+                style={{ paddingVertical: 14, paddingHorizontal: 24, flexDirection: "row", alignItems: "center", backgroundColor: isActive ? "rgba(116, 197, 230, 0.1)" : "transparent", borderRightWidth: isActive ? 3 : 0, borderRightColor: "#74C5E6" }}
+              >
+                <Ionicons name={item.icon} size={22} color={isActive ? "#74C5E6" : theme.textPrimary} />
+                <Text style={{ marginLeft: 16, fontSize: 16, fontWeight: isActive ? "700" : "500", color: isActive ? "#74C5E6" : theme.textPrimary }}>{item.label}</Text>
+                {item.badge && (
+                  <View style={{ marginLeft: "auto", backgroundColor: "#e2463b", paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
+                    <Text style={{ color: "#ffffff", fontSize: 12, fontWeight: "700" }}>5</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Emergency Footer Block */}
+        <View style={{ marginHorizontal: 24, marginTop: 40, padding: 18, backgroundColor: "rgba(226, 70, 59, 0.1)", borderRadius: 16, borderWidth: 1, borderColor: "rgba(226, 70, 59, 0.2)" }}>
+          <Ionicons name="warning" size={24} color="#e2463b" />
+          <Text style={{ color: "#ffffff", fontSize: 15, fontWeight: "700", marginTop: 8 }}>Emergency</Text>
+          <Text style={{ color: "#94a3b8", fontSize: 12, marginTop: 4 }}>Need immediate assistance?</Text>
+          <TouchableOpacity
+            style={{ backgroundColor: "#e2463b", paddingVertical: 10, borderRadius: 8, alignItems: "center", marginTop: 12 }}
+            onPress={() => Linking.openURL('tel:911')}
+          >
+            <Text style={{ color: "#ffffff", fontWeight: "700" }}>Call 911 / 143</Text>
+          </TouchableOpacity>
+        </View>
+
+      </DrawerContentScrollView>
+
+      {/* Sticky Bottom Logout Section */}
+      <View style={{ padding: 20, borderTopWidth: 1, borderTopColor: theme.border, marginBottom: Platform.OS === 'ios' ? 40 : 30 }}>
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, backgroundColor: theme.badgeBg, borderRadius: 12 }}
+          onPress={() => setShowLogoutModal(true)}
+        >
+          <Ionicons name="log-out-outline" size={20} color={theme.danger} />
+          <Text style={{ color: theme.textPrimary, fontWeight: "700", fontSize: 15, marginLeft: 10 }}>Log Out</Text>
+        </TouchableOpacity>
+      </View>
+
+      <LogoutConfirmationModal
+        visible={showLogoutModal}
+        onConfirm={handleLogout}
+        onCancel={() => setShowLogoutModal(false)}
+      />
+    </View>
+  );
+};
+
+const MainDrawer = () => {
+  const { theme } = useTheme();
+  const [userName, setUserName] = useState("User");
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const stored = await AsyncStorage.getItem('userData');
+        if (stored) {
+          const user = JSON.parse(stored);
+          setUserName(user.full_name || user.name || "User");
+        }
+      } catch (e) {
+        console.log("Error loading user in Drawer", e);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  return (
+    <Drawer.Navigator
+      useLegacyImplementation={false}
+      drawerContent={(props) => <CustomDrawerContent {...props} />}
+      screenOptions={{
+        headerShown: false,
+        drawerStyle: {
+          backgroundColor: theme.background,
+          width: 300,
+        },
+      }}
+    >
+      <Drawer.Screen name="Dashboard" component={DashboardScreen} />
+      <Drawer.Screen name="Alerts" component={AlertsScreen} />
+      <Drawer.Screen name="Evacuate" component={EvacuationScreen} />
+      <Drawer.Screen name="Report">
+        {(props) => <ReportScreen {...props} userName={userName} />}
+      </Drawer.Screen>
+      <Drawer.Screen name="Settings" component={SettingsScreen} />
+    </Drawer.Navigator>
+  );
+};
+
+export default function App() {
+  const [form, setForm] = useState({ fullName: "", email: "", phone: "" });
+  const [selection, setSelection] = useState("");
+  const [area, setArea] = useState("");
+  const [toggles, setToggles] = useState({ weather: true, community: false });
+
+  return (
+    <ThemeContext.Provider value={{ theme }}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={theme.background}
+      />
+      <NavigationContainer>
+        <Stack.Navigator
+          initialRouteName="Loading"
+          screenOptions={{
+            headerShown: false,
+            animationEnabled: false,
+            cardStyleInterpolator: CardStyleInterpolators.forNoAnimation,
+          }}
+        >
+          <Stack.Screen name="Loading" component={LoadingScreen} />
+          <Stack.Screen name="Landing" component={LandingScreen} />
+          <Stack.Screen name="Login" component={LoginScreen} />
+          <Stack.Screen name="ChangePassword" component={ChangePasswordScreen} />
+          <Stack.Screen name="Welcome" component={WelcomeScreen} />
+          <Stack.Screen name="Account">
+            {(props) => (
+              <AccountScreen {...props} form={form} setForm={setForm} />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="Location">
+            {(props) => (
+              <LocationScreen
+                {...props}
+                selection={selection}
+                setSelection={setSelection}
+                area={area}
+                setArea={setArea}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="Notifications">
+            {(props) => (
+              <NotificationsScreen
+                {...props}
+                toggles={toggles}
+                setToggles={setToggles}
+                form={form}
+                selection={selection}
+              />
+            )}
+          </Stack.Screen>
+          <Stack.Screen name="MainDrawer" component={MainDrawer} />
+          <Stack.Screen name="AlertDetail" component={AlertDetailScreen} />
+          <Stack.Screen name="EvacuationMap" component={EvacuationMapScreen} />
+          <Stack.Screen name="ActiveNavigation" component={ActiveNavigationScreen} />
+          <Stack.Screen name="Map" component={MapScreen} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </ThemeContext.Provider>
+  );
+}
+
+const getStyles = (theme) => StyleSheet.create({
+  safe: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  dashboardSafe: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  dashHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 32,
+    paddingBottom: 12,
+    zIndex: 10,
+    backgroundColor: theme.background,
+  },
+  burgerButton: {
+    padding: 8,
+    marginLeft: -8,
+  },
+  dashHeaderTexts: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  dashHeaderTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: theme.textPrimary,
+  },
+  dashHeaderSubtitle: {
+    fontSize: 13,
+    color: theme.textSecondary,
+  },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(226, 70, 59, 0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(226, 70, 59, 0.4)",
+  },
+  liveBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.danger,
+    marginRight: 6,
+  },
+  liveBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: theme.danger,
+  },
+  landingPage: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: theme.background,
+  },
+  landingPageOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 29, 57, 0.4)",
+  },
+  landingCard: {
+    marginHorizontal: 18,
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+    borderRadius: 24,
+    backgroundColor: theme.cardBlue,
+    borderWidth: 1,
+    borderColor: "rgba(123, 189, 232, 0.15)",
+    alignItems: "center",
+  },
+  liveBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    marginBottom: 24,
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#6EA2B3',
+    marginRight: 6,
+  },
+  liveBadgeText: {
+    color: theme.textSecondary,
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: theme.surface,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingContent: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  loadingLogo: {
+    width: 280,
+    height: 280,
+    resizeMode: "contain",
+  },
+  landingLogo: {
+    width: 120,
+    height: 120,
+    resizeMode: "contain",
+    marginBottom: 16,
+  },
+  landingTitle: {
+    fontSize: 80,
+    fontWeight: "900",
+    color: theme.textPrimary,
+    letterSpacing: -2,
+    lineHeight: 85,
+    textAlign: "center",
+  },
+  landingCaption: {
+    textAlign: "center",
+    fontSize: 14,
+    lineHeight: 22,
+    color: theme.textSecondary,
+    marginBottom: 32,
+  },
+  landingPrimary: {
+    width: "100%",
+    paddingVertical: 16,
+    borderRadius: 12,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  landingPrimaryText: {
+    color: theme.textPrimary,
+    fontWeight: "600",
+    fontSize: 15,
+  },
+  landingSecondary: {
+    width: "100%",
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#6EA2B3",
+    backgroundColor: "#6EA2B3",
+    alignItems: "center",
+  },
+  landingSecondaryText: {
+    color: theme.textPrimary,
+    fontWeight: "700",
+  },
+  pillBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 30,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  cyanDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#00D2FF',
+    marginRight: 8,
+  },
+  pillBadgeText: {
+    color: theme.textPrimary,
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  heroText: {
+    fontSize: 60,
+    fontWeight: '900',
+    color: theme.textPrimary,
+    letterSpacing: -2,
+    lineHeight: 64,
+    textAlign: 'center',
+  },
+  heroSubText: {
+    textAlign: 'center',
+    fontSize: 15,
+    lineHeight: 24,
+    color: theme.textSecondary,
+  },
+  btnExplore: {
+    width: '100%',
+    paddingVertical: 18,
+    borderRadius: 14,
+    backgroundColor: "#303D4D",
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  btnExploreText: {
+    color: theme.textPrimary,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  btnAdmin: {
+    width: '100%',
+    paddingVertical: 18,
+    borderRadius: 14,
+    backgroundColor: theme.primary,
+    alignItems: 'center',
+  },
+  btnAdminText: {
+    color: "#fff",
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  landingContainerFixed: {
+    flex: 1,
+    backgroundColor: theme.background,
+  },
+  headerGradient: {
+    paddingHorizontal: 22,
+    paddingBottom: 16,
+  },
+  dashboardHeader: {
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 16,
+  },
+  alertsHeaderCard: {
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 16,
+    marginTop: 0,
+  },
+  dashboardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  dashboardSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    color: theme.textPrimary,
+  },
+  dashboardContent: {
+    padding: 18,
+    gap: 14,
+  },
+  statusCard: {
+    borderRadius: 16,
+    padding: 16,
+  },
+  statusHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  statusTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  statusPill: {
+    backgroundColor: "#dff5e6",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: theme.statusSafe,
+  },
+  statusMessage: {
+    marginTop: 8,
+    fontSize: 13,
+    color: theme.textSecondary,
+  },
+  statusUpdateRow: {
+    marginTop: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.statusSafe,
+  },
+  statusUpdateText: {
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  mapCard: {
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: theme.badgeBg,
+  },
+  mapHeaderBar: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  mapHeaderTitle: {
+    color: theme.textPrimary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  mapFull: {
+    flex: 1,
+    margin: 16,
+    borderRadius: 18,
+    overflow: "hidden",
+  },
+  mapFullMap: {
+    flex: 1,
+  },
+  mapHighlight: {
+    position: "absolute",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 2,
+    borderColor: "rgba(42,106,227,0.35)",
+    backgroundColor: "rgba(42,106,227,0.08)",
+  },
+  mapLegendBar: {
+    paddingHorizontal: 18,
+    paddingBottom: 16,
+    gap: 8,
+  },
+  mapLegendTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  mapLegendItems: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  mapLegendItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  mapHeader: {
+    alignItems: "flex-start",
+  },
+  mapLegend: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  legendDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  legendText: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginRight: 6,
+  },
+  mapPreview: {
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: "hidden",
+    minHeight: 150,
+  },
+  mapPreviewMap: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  mapPreviewOverlay: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+    paddingHorizontal: 10,
+    backgroundColor: "rgba(255,255,255,0.7)",
+    width: "100%",
+  },
+  mapTitle: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  mapSubtitle: {
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  sensorCount: {
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  sectionHeader: {
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  sensorGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  sensorCard: {
+    width: "48%",
+    padding: 14,
+    borderRadius: 14,
+    gap: 6,
+  },
+  sensorLabel: {
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  sensorValue: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  sensorStatus: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  dashboardPrimary: {
+    marginTop: 4,
+  },
+  dashboardSecondary: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
+  },
+  dashboardSecondaryText: {
+    color: theme.primary,
+  },
+  bottomNav: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
+    backgroundColor: theme.surface,
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  navItem: {
+    alignItems: "center",
+    gap: 2,
+    flex: 1,
+  },
+  navItemActive: {
+    alignItems: "center",
+    gap: 2,
+    flex: 1,
+  },
+  navText: {
+    fontSize: 9,
+    lineHeight: 12,
+    textAlign: "center",
+    color: theme.textSecondary,
+  },
+  navTextActive: {
+    fontSize: 9,
+    lineHeight: 12,
+    textAlign: "center",
+    color: theme.primary,
+    fontWeight: "600",
+  },
+  alertsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 6,
+    paddingBottom: 2,
+    gap: 12,
+  },
+  headerTextGroup: {
+    flex: 1,
+  },
+  alertsTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  filterRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  filterPill: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    backgroundColor: theme.badgeBg,
+  },
+  filterPillActive: {
+    backgroundColor: theme.primary,
+  },
+  filterText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  filterTextActive: {
+    fontSize: 12,
+    color: theme.textPrimary,
+    fontWeight: "600",
+  },
+  alertSummary: {
+    marginHorizontal: 18,
+    marginTop: 8,
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  summaryLabel: {
+    fontSize: 11,
+    color: theme.textPrimary,
+  },
+  summaryValue: {
+    marginTop: 4,
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  summaryDivider: {
+    width: 1,
+    height: "100%",
+    backgroundColor: "rgba(123, 189, 232, 0.15)",
+    marginHorizontal: 12,
+  },
+  alertsList: {
+    padding: 18,
+    gap: 12,
+  },
+  alertCard: {
+    backgroundColor: theme.surface,
+    borderRadius: 16,
+    padding: 14,
+    borderLeftWidth: 4,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  alertHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  alertIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.badgeBg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  alertTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  alertBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: theme.badgeBg,
+  },
+  alertBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: theme.textSecondary,
+  },
+  alertDescription: {
+    marginTop: 8,
+    fontSize: 12,
+    color: theme.textSecondary,
+    lineHeight: 16,
+  },
+  alertMeta: {
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  alertMetaText: {
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  alertDetailContent: {
+    padding: 18,
+    gap: 12,
+  },
+  alertDetailCard: {
+    borderRadius: 16,
+    padding: 16,
+  },
+  alertDetailTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  alertDetailLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.textPrimary,
+    marginBottom: 6,
+  },
+  alertDetailDescription: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    lineHeight: 18,
+  },
+  alertDetailMeta: {
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  evacHeader: {
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 18,
+  },
+  evacTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  evacSubtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    color: theme.textPrimary,
+  },
+  evacContent: {
+    padding: 18,
+    gap: 14,
+  },
+  routeCard: {
+    borderRadius: 16,
+    padding: 16,
+  },
+  routeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  routeTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  routeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: theme.border,
+  },
+  routeBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  routeDistance: {
+    marginTop: 6,
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  routeButton: {
+    marginTop: 12,
+  },
+  routeStatusPill: {
+    backgroundColor: "#ffe5d9",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  routeStatusText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: theme.danger,
+  },
+  evacMapTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  sectionHint: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  centerCard: {
+    borderRadius: 16,
+    padding: 16,
+  },
+  centerHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  centerTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+    flex: 1,
+    marginRight: 8,
+  },
+  centerStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  centerOpen: {
+    backgroundColor: "#dff5e6",
+  },
+  centerFull: {
+    backgroundColor: "#ffe5e5",
+  },
+  centerStatusText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: theme.statusSafe,
+  },
+  centerDistance: {
+    marginTop: 8,
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  centerMeta: {
+    marginTop: 6,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  centerMetaText: {
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  centerActions: {
+    marginTop: 12,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+  },
+  centerCall: {
+    flex: 1,
+  },
+  centerCallText: {
+    color: theme.danger,
+  },
+  centerNav: {
+    flex: 1,
+  },
+  centerHint: {
+    marginTop: 8,
+    fontSize: 11,
+    color: "#b3453d",
+  },
+  offlineNotice: {
+    backgroundColor: "#fff5eb",
+  },
+  offlineText: {
+    fontSize: 12,
+    color: "#9b4a2f",
+    lineHeight: 16,
+  },
+  navHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: theme.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  navHeaderText: {
+    flex: 1,
+  },
+  navTitle: {
+    color: theme.textPrimary,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  navSubtitle: {
+    color: theme.textPrimary,
+    fontSize: 12,
+    marginTop: 2,
+  },
+  navStats: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: theme.surface,
+    marginHorizontal: 18,
+    marginTop: 12,
+    borderRadius: 14,
+    padding: 12,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  navStatItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flex: 1,
+  },
+  navStatText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.textPrimary,
+  },
+  navStatDivider: {
+    width: 1,
+    height: "100%",
+    backgroundColor: theme.border,
+  },
+  navMapContainer: {
+    marginTop: 12,
+    marginHorizontal: 18,
+    borderRadius: 18,
+    overflow: "hidden",
+    flex: 1,
+    minHeight: 280,
+  },
+  navMapOverlay: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: theme.textPrimary,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  navOverlayTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  navOverlaySubtitle: {
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  navDirections: {
+    marginTop: 12,
+    paddingHorizontal: 18,
+    gap: 8,
+  },
+  navScrollContent: {
+    paddingBottom: 24,
+  },
+  navSectionTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  locationCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: 20,
+    padding: 12,
+  },
+  navDirectionCard: {
+    borderRadius: 14,
+    padding: 12,
+  },
+  navDirectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  navDirectionText: {
+    flex: 1,
+    fontSize: 12,
+    color: theme.textPrimary,
+  },
+  navDirectionMeta: {
+    marginTop: 6,
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  navSafetyCard: {
+    marginHorizontal: 18,
+    marginTop: 12,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: theme.badgeBg,
+  },
+  navSafetyText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#7a4a1f",
+    lineHeight: 16,
+  },
+  navActions: {
+    marginTop: 12,
+    paddingHorizontal: 18,
+    gap: 12,
+    paddingBottom: 18,
+  },
+  navEndButton: {
+    backgroundColor: theme.danger,
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+  },
+  navEndText: {
+    color: theme.textPrimary,
+    fontWeight: "700",
+  },
+  navReportButton: {
+    borderRadius: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+    alignItems: "center",
+    backgroundColor: theme.surface,
+  },
+  navReportText: {
+    color: theme.textPrimary,
+    fontWeight: "600",
+  },
+  reportContent: {
+    padding: 18,
+    gap: 14,
+  },
+  reportInfoCard: {
+    backgroundColor: theme.badgeBg,
+  },
+  reportInfoHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  reportInfoTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  reportInfoText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    lineHeight: 16,
+  },
+  reportSection: {
+    gap: 8,
+  },
+  reportTypeGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+  },
+  reportTypeChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
+  },
+  reportTypeChipActive: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
+  },
+  reportTypeText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontWeight: "600",
+  },
+  reportTypeTextActive: {
+    color: theme.textPrimary,
+  },
+  reportLocationCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  reportLocationText: {
+    flex: 1,
+  },
+  reportLocationTitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.textPrimary,
+  },
+  reportLocationSubtitle: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+  reportInput: {
+    minHeight: 100,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 12,
+    padding: 12,
+    textAlignVertical: "top",
+    backgroundColor: theme.surface,
+  },
+  reportPhotoRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  reportPhotoButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: theme.surface,
+  },
+  reportPhotoText: {
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  reportPhotoCount: {
+    marginTop: 6,
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  reportPreviewRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginTop: 8,
+  },
+  reportPreviewImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 10,
+    backgroundColor: "#e6ebf3",
+  },
+  reportSubmit: {
+    marginTop: 4,
+  },
+  reportsList: {
+    gap: 10,
+  },
+  reportItem: {
+    padding: 14,
+  },
+  reportItemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  reportItemTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  reportStatus: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  reportStatusReview: {
+    backgroundColor: theme.badgeBg,
+  },
+  reportStatusVerified: {
+    backgroundColor: theme.surface,
+  },
+  reportStatusText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: theme.primary,
+  },
+  reportItemLocation: {
+    marginTop: 6,
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  reportItemTime: {
+    marginTop: 2,
+    fontSize: 10,
+    color: theme.textSecondary,
+  },
+  settingsHeader: {
+    borderRadius: 18,
+    padding: 20,
+    marginBottom: 16,
+  },
+  settingsTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  settingsSubtitle: {
+    marginTop: 6,
+    fontSize: 12,
+    color: theme.textPrimary,
+  },
+  settingsContent: {
+    padding: 18,
+    gap: 14,
+  },
+  profileCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  profileAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#6a36f5",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileText: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  profileEmail: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+  profileLocation: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  settingsSection: {
+    gap: 8,
+  },
+  settingsSectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
+  settingsItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: theme.surface,
+    borderRadius: 14,
+    padding: 14,
+    shadowColor: "#000000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 1,
+  },
+  settingsItemText: {
+    flex: 1,
+  },
+  settingsItemTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  settingsItemSubtitle: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+  offlineCard: {
+    backgroundColor: theme.badgeBg,
+  },
+  offlineHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  offlineDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  offlineTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  offlineMessage: {
+    marginTop: 6,
+    fontSize: 11,
+    color: theme.textSecondary,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    justifyContent: "center",
+    paddingVertical: 12,
+  },
+  logoutText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: theme.danger,
+  },
+  settingsFooter: {
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+  },
+  settingsFooterText: {
+    fontSize: 10,
+    color: theme.textSecondary,
+  },
+  statusBarSpacer: {
+    backgroundColor: theme.primary,
+  },
+  stepHeader: {
+    gap: 10,
+  },
+  stepLabel: {
+    color: "#e7ecff",
+    fontWeight: "600",
+    fontSize: 12,
+    letterSpacing: 0.4,
+  },
+  progressTrack: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  progressSegment: {
+    flex: 1,
+    height: 4,
+    borderRadius: 999,
+  },
+  progressActive: {
+    backgroundColor: theme.surface,
+  },
+  progressInactive: {
+    backgroundColor: "rgba(255,255,255,0.35)",
+  },
+  content: {
+    padding: 20,
+    gap: 16,
+  },
+  heroCard: {
+    alignItems: "center",
+    gap: 8,
+  },
+  heroIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  landingHero: {
+    borderRadius: 22,
+    overflow: "hidden",
+    minHeight: 220,
+    justifyContent: "flex-end",
+  },
+  landingImage: {
+    borderRadius: 22,
+  },
+  landingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(18, 32, 64, 0.58)",
+  },
+  landingContent: {
+    padding: 18,
+    gap: 8,
+  },
+  landingTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  landingSubtitle: {
+    fontSize: 13,
+    color: theme.textPrimary,
+    lineHeight: 18,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: theme.textPrimary,
+    textAlign: "center",
+  },
+  subtitle: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  sectionSpacing: {
+    gap: 12,
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.textSecondary,
+    marginLeft: 4,
+  },
+  card: {
+    backgroundColor: theme.surface,
+    padding: 16,
+    borderRadius: 18,
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 2,
+  },
+  featureCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  featureText: {
+    flex: 1,
+  },
+  featureTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  featureSubtitle: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  footer: {
+    marginTop: 6,
+  },
+  footerRow: {
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "center",
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  primaryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    minWidth: 160,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
+  primaryButtonText: {
+    color: theme.textPrimary,
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  secondaryButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: theme.border,
+    alignItems: "center",
+    backgroundColor: theme.surface,
+  },
+  secondaryButtonText: {
+    fontWeight: "600",
+    color: theme.textSecondary,
+  },
+  formCard: {
+    gap: 10,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: theme.textSecondary,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: theme.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.surface,
+    fontSize: 14,
+    color: theme.textPrimary,
+  },
+  errorText: {
+    color: "#c53228",
+    fontSize: 12,
+    textAlign: "center",
+  },
+  optionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: theme.border,
+    backgroundColor: theme.surface,
+  },
+  optionSelected: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
+  },
+  optionIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.border,
+  },
+  optionText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 14,
+    color: theme.textPrimary,
+    fontWeight: "600",
+  },
+  optionTextSelected: {
+    color: theme.textPrimary,
+  },
+  infoNote: {
+    backgroundColor: theme.badgeBg,
+  },
+  infoNoteText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    lineHeight: 16,
+  },
+  toggleCard: {
+    padding: 16,
+  },
+  toggleCritical: {
+    borderWidth: 1,
+    borderColor: "#ffd0d0",
+    backgroundColor: "#fff5f5",
+  },
+  toggleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  toggleText: {
+    flex: 1,
+  },
+  toggleTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: theme.textPrimary,
+  },
+  toggleSubtitle: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 4,
+  },
+  toggleNote: {
+    fontSize: 11,
+    color: "#a14d4d",
+    marginTop: 6,
+    fontWeight: "600",
+  },
+
+  // Dashboard Header & Title
+  dashboardScrollContent: {
+    padding: 16,
+    gap: 16,
+  },
+  dashHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingHorizontal: 24,
+  },
+  burgerButton: {
+    padding: 8,
+    marginRight: 12,
+  },
+  dashHeaderTexts: {
+    flex: 1,
+  },
+  dashHeaderTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: theme.textPrimary,
+  },
+  dashHeaderSubtitle: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    marginTop: 2,
+  },
+  liveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  liveBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#ef4444',
+    marginRight: 6,
+  },
+  liveBadgeText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+
+  // Location Card
+  locationCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: 20,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  locationHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  locationLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#64748b',
+    letterSpacing: 1,
+  },
+  safeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  safeBadgeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22c55e',
+    marginRight: 4,
+  },
+  safeBadgeText: {
+    color: '#22c55e',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  locationTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  locationTitle: {
+    marginLeft: 8,
+    fontSize: 20,
+    fontWeight: '700',
+    color: theme.textPrimary,
+  },
+  locationTimeText: {
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 20,
+    marginLeft: 28,
+  },
+  riskLevelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  riskLevelLabel: {
+    fontSize: 13,
+    color: theme.textSecondary,
+    marginRight: 12,
+  },
+  riskLevelBarTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: 3,
+    marginRight: 12,
+  },
+  riskLevelBarFill: {
+    width: '20%',
+    height: '100%',
+    backgroundColor: '#22c55e',
+    borderRadius: 3,
+  },
+  riskLevelValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#22c55e',
+  },
+
+  // Welcome Banner Styles
+  welcomeBanner: {
+    borderRadius: 28,
+    padding: 24,
+    marginBottom: 8,
+    overflow: 'hidden',
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  welcomeContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    zIndex: 10,
+  },
+  welcomeGreeting: {
+    fontSize: 14,
+    color: '#94a3b8',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  welcomeName: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginTop: 2,
+  },
+  welcomeStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  welcomePulse: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#34d399',
+  },
+  welcomeStatusText: {
+    fontSize: 11,
+    color: '#34d399',
+    fontWeight: '700',
+  },
+  welcomeAvatarContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    padding: 3,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  welcomeAvatarGradient: {
+    flex: 1,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeAvatarText: {
+    color: '#ffffff',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  welcomeOrb: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#74C5E6',
+  },
+
+  // Sensor Card (Gauge) Redesigned
+  sensorMainCard: {
+    backgroundColor: '#0f172a',
+    borderRadius: 32,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    shadowColor: '#000',
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 8,
+  },
+  sensorCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 32,
+  },
+  sensorCardTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#7BBDE8',
+    textTransform: 'uppercase',
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  sensorCardSubtitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#ffffff',
+  },
+  onlineBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(52, 211, 153, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.2)',
+  },
+  pulseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#10b981',
+  },
+  onlineBadgeText: {
+    color: '#34d399',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+
+  // Custom Gauge Redesign
+  gaugeContainerOuter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    gap: 20,
+  },
+  gaugeGlassContainer: {
+    width: 110,
+    height: 280,
+    position: 'relative',
+    borderRadius: 55,
+    backgroundColor: '#020617',
+    padding: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+  },
+  gaugeCapsule: {
+    flex: 1,
+    backgroundColor: '#0f172a',
+    borderRadius: 50,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  gaugeLevelMark: {
+    position: 'absolute',
+    left: -35,
+    width: 30,
+    alignItems: 'flex-end',
+    zIndex: 15,
+  },
+  gaugeMarkText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  gaugeLevelDivider: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    zIndex: 10,
+  },
+  gaugeGlassReflection: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 55,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.05)',
+    pointerEvents: 'none',
+  },
+  gaugeGlassShine: {
+    position: 'absolute',
+    top: 20,
+    left: 20,
+    width: 30,
+    height: 120,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 15,
+    transform: [{ skewX: '-10deg' }],
+    pointerEvents: 'none',
+  },
+
+  readingContainer: {
+    flex: 1,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  gaugeReading: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginBottom: 12,
+  },
+  gaugeReadingValue: {
+    fontSize: 64,
+    fontWeight: '900',
+    color: '#ffffff',
+    letterSpacing: -2,
+  },
+  gaugeReadingUnit: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#74C5E6',
+    marginLeft: 4,
+  },
+  statusChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(234, 179, 8, 0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(234, 179, 8, 0.3)',
+  },
+  statusChipDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  statusChipText: {
+    color: '#fbbf24',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+
+  sensorCardFooter: {
+    flexDirection: 'column',
+    marginTop: 32,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.05)',
+    gap: 8,
+  },
+  footerInfoItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  thresholdText: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  thresholdTextBold: {
+    fontWeight: '700',
+    color: '#94a3b8',
+  },
+  sensorIdText: {
+    fontSize: 11,
+    color: 'rgba(100, 116, 139, 0.6)',
+    fontWeight: '600',
+    marginTop: 4,
+  },
+
+  // Welcome Alert Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  welcomeAlertCard: {
+    width: '90%',
+    backgroundColor: '#0f172a',
+    borderRadius: 32,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+  },
+  welcomeAlertIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 24,
+    padding: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+  },
+  welcomeAlertIconGradient: {
+    flex: 1,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  welcomeAlertTitle: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#ffffff',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  welcomeAlertGreeting: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#74C5E6',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  welcomeAlertMessage: {
+    fontSize: 15,
+    color: '#94a3b8',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  welcomeAlertButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  welcomeAlertButtonGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  welcomeAlertButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+
+  // Logout Alert specific styles
+  logoutAlertCard: {
+    width: '90%',
+    backgroundColor: '#0f172a',
+    borderRadius: 32,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.2)',
+    shadowColor: '#000',
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 10,
+  },
+  logoutAlertIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginBottom: 24,
+    padding: 4,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+  },
+  logoutButtonRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  logoutActionButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutButtonGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoutButtonText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  modalOverlayBackground: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  editProfileCard: {
+    width: '95%',
+    backgroundColor: theme.surface,
+    borderRadius: 32,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOpacity: 0.4,
+    shadowRadius: 15,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 10,
+  },
+  editProfileHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  editProfileTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: theme.textPrimary,
+  },
+  editProfileAvatarSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  editProfileAvatar: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: theme.badgeBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    borderWidth: 3,
+    borderColor: theme.primary,
+  },
+  editProfileAvatarInitial: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  editProfileAvatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editProfileCameraIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    backgroundColor: theme.primary,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: theme.surface,
+  },
+  editProfileAvatarLabel: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginTop: 8,
+    fontWeight: '600',
+  },
+  editProfileForm: {
+    marginBottom: 24,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: theme.textSecondary,
+    marginBottom: 8,
+    letterSpacing: 1,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.badgeBg,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    height: 52,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  textInput: {
+    flex: 1,
+    marginLeft: 12,
+    color: theme.textPrimary,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  profileSaveButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  profileSaveButtonGradient: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileSaveButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+});
