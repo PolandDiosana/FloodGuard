@@ -16,6 +16,7 @@ import AlertManagementPage from "./src/screens/AlertManagementPage";
 import SystemHealthPage from "./src/screens/SystemHealthPage";
 import DataReportsPage from "./src/screens/DataReportsPage";
 import UserManagementPage from "./src/screens/UserManagementPage";
+import EvacuationManagementPage from "./src/screens/EvacuationManagementPage";
 import ThresholdConfigPage from "./src/screens/ThresholdConfigPage";
 import AboutPage from "./src/screens/AboutPage";
 import FeaturesPage from "./src/screens/FeaturesPage";
@@ -146,6 +147,8 @@ export default function App() {
         return <ThresholdConfigPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       case "data-reports":
         return <DataReportsPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
+      case "evacuation-management":
+        return <EvacuationManagementPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       default:
         // For pages handled internally by dashboards (like user-management for superadmin)
         if (userRole === "superadmin") {

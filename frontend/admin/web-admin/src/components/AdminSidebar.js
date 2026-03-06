@@ -42,6 +42,7 @@ const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => 
             { id: "overview", label: "Overview", icon: "grid" },
             { id: "sensor-map", label: "Sensor Map", icon: "map" },
             { id: "alert-management", label: "Alert Management", icon: "bell" },
+            { id: "evacuation-management", label: "Evacuation Centers", icon: "home" },
             { id: "system-health", label: "System Health", icon: "activity" },
             { id: "data-reports", label: "Data & Reports", icon: "file-text" },
         ];

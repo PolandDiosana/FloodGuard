@@ -1415,6 +1415,10 @@ export const styles = StyleSheet.create({
         paddingHorizontal: 24,
         paddingBottom: 24,
     },
+    alertBroadcastPanelContainer: {
+        flex: 1,
+        position: 'relative',
+    },
     alertBroadcastPanel: {
         flex: 1,
         backgroundColor: "#ffffff",
@@ -1427,6 +1431,17 @@ export const styles = StyleSheet.create({
         shadowOpacity: 0.05,
         shadowRadius: 8,
         elevation: 2,
+    },
+    alertPanelBack: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+    },
+    alertVerificationsPanelContainer: {
+        flex: 1,
+        position: 'relative',
     },
     alertVerificationsPanel: {
         flex: 1,
@@ -1444,14 +1459,38 @@ export const styles = StyleSheet.create({
     alertPanelHeader: {
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
         marginBottom: 24,
-        gap: 12,
     },
     alertPanelTitle: {
         fontSize: 20,
         fontWeight: "700",
         color: "#0f172a",
         letterSpacing: -0.3,
+    },
+    flipToggleButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 10,
+        backgroundColor: '#BDD8E9',
+        borderWidth: 1.5,
+        borderColor: '#7BBDE8',
+        transition: 'all 0.2s ease',
+    },
+    flipToggleButtonHover: {
+        backgroundColor: '#7BBDE8',
+        borderColor: '#49769F',
+        transform: [{ scale: 1.02 }],
+    },
+    flipToggleButtonText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#0A4174',
+    },
+    flipToggleButtonTextHover: {
+        color: '#001D39',
     },
     alertInputGroup: {
         marginBottom: 24,
@@ -1598,6 +1637,39 @@ export const styles = StyleSheet.create({
         fontWeight: "600",
         color: "#0f172a",
         marginBottom: 8,
+    },
+    // Reports Preview on Front Side
+    reportsPreviewList: {
+        backgroundColor: '#f8fafc',
+        borderRadius: 12,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        gap: 8,
+    },
+    reportPreviewItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        paddingBottom: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    reportPreviewDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: '#166534',
+    },
+    reportPreviewText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#1e293b',
+    },
+    reportPreviewLocation: {
+        fontSize: 11,
+        color: '#64748b',
+        fontWeight: '500',
     },
     verificationMessage: {
         fontSize: 15,

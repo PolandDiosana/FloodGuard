@@ -70,6 +70,21 @@ CREATE TABLE IF NOT EXISTS `reports` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- Evacuation Centers table
+CREATE TABLE IF NOT EXISTS `evacuation_centers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `location` varchar(255) NOT NULL,
+  `lat` decimal(10, 8) NOT NULL,
+  `lng` decimal(11, 8) NOT NULL,
+  `capacity` int(11) DEFAULT 0,
+  `slots_filled` int(11) DEFAULT 0,
+  `status` enum('open', 'full', 'closed') DEFAULT 'open',
+  `phone` varchar(20),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- TRUNCATE TABLE `admins`; -- Optional: Clear existing data to avoid duplicates (use with caution)
 
 -- Insert sample users with hashed passwords

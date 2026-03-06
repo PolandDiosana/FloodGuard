@@ -1229,14 +1229,39 @@ const AccountScreen = ({ navigation, form, setForm }) => {
   const [error, setError] = useState("");
 
   const onContinue = () => {
-    if (!form.fullName || !form.email || !form.phone) {
-      setError("Please complete all fields.");
+    // Basic presence check
+    if (!form.fullName) {
+      setError("Please enter your full name.");
       return;
     }
+    if (!form.email) {
+      setError("Please enter your email address.");
+      return;
+    }
+
+    // Strict Email Regex
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) {
+      setError("Please enter a valid email address (e.g. user@domain.com).");
+      return;
+    }
+
+    // Phone Validation (must be 10 digits)
+    if (!form.phone || form.phone.length !== 10) {
+      setError("Please enter a valid 10-digit phone number.");
+      return;
+    }
+
     setError("");
     navigation.navigate("Location");
   };
-  const isDisabled = !form.fullName || !form.email || !form.phone;
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const isEmailValid = emailRegex.test(form.email || "");
+  const isPhoneValid = form.phone?.length === 10;
+  const isNameValid = form.fullName?.trim().length > 0;
+
+  const isDisabled = !isNameValid || !isEmailValid || !isPhoneValid;
 
   return (
     <ScreenLayout step={2}>
@@ -1262,6 +1287,7 @@ const AccountScreen = ({ navigation, form, setForm }) => {
         <TextInput
           style={styles.input}
           placeholder="Juan Dela Cruz"
+          placeholderTextColor="#49769F"
           value={form.fullName}
           onChangeText={(value) => setForm((prev) => ({ ...prev, fullName: value }))}
         />
@@ -1270,6 +1296,7 @@ const AccountScreen = ({ navigation, form, setForm }) => {
         <TextInput
           style={styles.input}
           placeholder="juan@example.com"
+          placeholderTextColor="#49769F"
           value={form.email}
           onChangeText={(value) => setForm((prev) => ({ ...prev, email: value }))}
           keyboardType="email-address"
@@ -1277,13 +1304,25 @@ const AccountScreen = ({ navigation, form, setForm }) => {
         />
 
         <Text style={styles.inputLabel}>Phone Number</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="+63 912 345 6789"
-          value={form.phone}
-          onChangeText={(value) => setForm((prev) => ({ ...prev, phone: value }))}
-          keyboardType="phone-pad"
-        />
+        <View style={styles.phoneInputRow}>
+          <View style={styles.phonePrefix}>
+            <Text style={styles.phonePrefixText}>+63</Text>
+          </View>
+          <TextInput
+            style={[styles.input, { flex: 1, borderTopLeftRadius: 0, borderBottomLeftRadius: 0 }]}
+            placeholder="912 345 6789"
+            placeholderTextColor="#49769F"
+            value={form.phone}
+            onChangeText={(value) => {
+              const cleaned = value.replace(/[^0-9]/g, '');
+              if (cleaned.length <= 10) {
+                setForm((prev) => ({ ...prev, phone: cleaned }));
+              }
+            }}
+            keyboardType="phone-pad"
+            maxLength={10}
+          />
+        </View>
       </Card>
 
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -2358,7 +2397,19 @@ const EvacuationScreen = ({ navigation }) => {
         {EVAC_CENTERS.map((center) => (
           <Card key={center.id} style={styles.centerCard}>
             <View style={styles.centerHeader}>
-              <Text style={styles.centerTitle}>{center.name}</Text>
+              <View style={styles.centerTitleWrapper}>
+                <Text style={styles.centerTitle}>{center.name}</Text>
+                <View style={styles.centerMetaRow}>
+                  <View style={styles.centerMetaItem}>
+                    <Feather name="navigation" size={12} color={theme.textSecondary} />
+                    <Text style={styles.centerDistanceText}>{center.distance} away</Text>
+                  </View>
+                  <View style={styles.centerMetaItem}>
+                    <Feather name="users" size={12} color={theme.textSecondary} />
+                    <Text style={styles.centerCapacityText}>Cap: {center.capacity}</Text>
+                  </View>
+                </View>
+              </View>
               <View
                 style={[
                   styles.centerStatus,
@@ -2368,39 +2419,51 @@ const EvacuationScreen = ({ navigation }) => {
                 <Text
                   style={[
                     styles.centerStatusText,
-                    { color: center.status === "open" ? "#2fb864" : "#d6453a" },
+                    { color: center.status === "open" ? "#2fb864" : "#ef4444" },
                   ]}
                 >
-                  {center.status === "open" ? "Open" : "Full"}
+                  {center.status === "open" ? "OPEN" : "FULL"}
                 </Text>
               </View>
             </View>
-            <Text style={styles.centerDistance}>{center.distance} away</Text>
-            <View style={styles.centerMeta}>
-              <Text style={styles.centerMetaText}>Capacity: {center.capacity}</Text>
-              <Text style={styles.centerMetaText}>
-                Slots: {center.slots} remaining
-              </Text>
-            </View>
-            <View style={styles.centerActions}>
-              <SecondaryButton
-                label="Call"
+
+            <View style={styles.centerActionsRow}>
+              <TouchableOpacity
+                style={styles.centerActionBtnSecondary}
                 onPress={() => callCenter(center.phone)}
-                style={styles.centerCall}
-                textStyle={styles.centerCallText}
-              />
-              <PrimaryButton
-                label="Navigate"
+              >
+                <Feather name="phone" size={16} color={theme.primary} />
+                <Text style={styles.centerActionBtnTextSecondary}>Call</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.centerActionBtnPrimary,
+                  center.status !== "open" && styles.centerActionBtnDisabled
+                ]}
                 onPress={() => openDirections(center.coordinate, center.name)}
                 disabled={center.status !== "open"}
-                style={styles.centerNav}
-              />
+              >
+                <LinearGradient
+                  colors={center.status === "open" ? theme.brandGradient : ["#4b5563", "#4b5563"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.centerActionBtnGradient}
+                >
+                  <Feather name="map-pin" size={16} color="#fff" />
+                  <Text style={styles.centerActionBtnTextPrimary}>Navigate</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
-            {center.status !== "open" ? (
-              <Text style={styles.centerHint}>
-                Center is full. Please use another nearby center.
-              </Text>
-            ) : null}
+
+            {center.status !== "open" && (
+              <View style={styles.centerFullNotice}>
+                <Feather name="alert-circle" size={12} color="#ef4444" />
+                <Text style={styles.centerFullNoticeText}>
+                  Center is full. Please use another nearby center.
+                </Text>
+              </View>
+            )}
           </Card>
         ))}
 
@@ -4119,70 +4182,124 @@ const getStyles = (theme) => StyleSheet.create({
     marginTop: 4,
   },
   centerCard: {
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.05)",
+    backgroundColor: theme.surface,
   },
   centerHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  centerTitleWrapper: {
+    flex: 1,
+    marginRight: 12,
   },
   centerTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: "700",
     color: theme.textPrimary,
-    flex: 1,
-    marginRight: 8,
+    marginBottom: 6,
+  },
+  centerMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  centerMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  centerDistanceText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontWeight: "500",
+  },
+  centerCapacityText: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    fontWeight: "500",
   },
   centerStatus: {
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    borderRadius: 999,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   centerOpen: {
-    backgroundColor: "#dff5e6",
+    backgroundColor: "rgba(47, 184, 100, 0.1)",
+    borderColor: "rgba(47, 184, 100, 0.2)",
   },
   centerFull: {
-    backgroundColor: "#ffe5e5",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
+    borderColor: "rgba(239, 68, 68, 0.2)",
   },
   centerStatusText: {
     fontSize: 10,
-    fontWeight: "700",
-    color: theme.statusSafe,
+    fontWeight: "800",
+    letterSpacing: 0.5,
   },
-  centerDistance: {
-    marginTop: 8,
-    fontSize: 12,
-    color: theme.textSecondary,
-  },
-  centerMeta: {
-    marginTop: 6,
+  centerActionsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  centerMetaText: {
-    fontSize: 11,
-    color: theme.textSecondary,
-  },
-  centerActions: {
-    marginTop: 12,
-    flexDirection: "row",
-    gap: 12,
     alignItems: "center",
+    gap: 10,
   },
-  centerCall: {
+  centerActionBtnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    backgroundColor: "rgba(116, 197, 230, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(116, 197, 230, 0.2)",
+  },
+  centerActionBtnTextSecondary: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: theme.primary,
+  },
+  centerActionBtnPrimary: {
     flex: 1,
+    borderRadius: 12,
+    overflow: "hidden",
   },
-  centerCallText: {
-    color: theme.danger,
+  centerActionBtnGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
-  centerNav: {
-    flex: 1,
+  centerActionBtnTextPrimary: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
   },
-  centerHint: {
-    marginTop: 8,
+  centerActionBtnDisabled: {
+    opacity: 0.5,
+  },
+  centerFullNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 12,
+    padding: 10,
+    backgroundColor: "rgba(239, 68, 68, 0.05)",
+    borderRadius: 8,
+  },
+  centerFullNoticeText: {
     fontSize: 11,
-    color: "#b3453d",
+    color: "#ef4444",
+    fontWeight: "500",
   },
   offlineNotice: {
     backgroundColor: "#fff5eb",
@@ -4808,19 +4925,41 @@ const getStyles = (theme) => StyleSheet.create({
     gap: 10,
   },
   inputLabel: {
-    fontSize: 12,
-    fontWeight: "600",
-    color: theme.textSecondary,
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: theme.border,
+    borderColor: "rgba(123, 189, 232, 0.15)",
     borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    backgroundColor: theme.surface,
+    paddingVertical: 12,
+    backgroundColor: "#283747",
     fontSize: 14,
-    color: theme.textPrimary,
+    color: "#ffffff",
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  phonePrefix: {
+    backgroundColor: "#1E2A38",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderTopLeftRadius: 12,
+    borderBottomLeftRadius: 12,
+    borderWidth: 1,
+    borderRightWidth: 0,
+    borderColor: "rgba(123, 189, 232, 0.15)",
+    justifyContent: 'center',
+    height: 52,
+  },
+  phonePrefixText: {
+    color: "#7BBDE8",
+    fontWeight: "700",
+    fontSize: 14,
   },
   errorText: {
     color: "#c53228",
@@ -5514,13 +5653,6 @@ const getStyles = (theme) => StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 16,
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: theme.textSecondary,
-    marginBottom: 8,
-    letterSpacing: 1,
   },
   inputContainer: {
     flexDirection: 'row',
