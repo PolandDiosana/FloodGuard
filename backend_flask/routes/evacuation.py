@@ -36,6 +36,15 @@ def create_evacuation_center():
             INSERT INTO evacuation_centers (name, location, lat, lng, capacity, phone)
             VALUES (%s, %s, %s, %s, %s, %s)
         """, (name, location, lat, lng, capacity, phone))
+        
+        # Automatically create an alert for the new center
+        alert_title = f"New Evacuation Center: {name}"
+        alert_description = f"{name} in {location} is now available for residents. Capacity: {capacity}."
+        cursor.execute("""
+            INSERT INTO alerts (title, description, level, barangay, status)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (alert_title, alert_description, 'advisory', 'All', 'active'))
+
         db.commit()
         return jsonify({"message": "Evacuation center created successfully", "id": cursor.lastrowid}), 201
     except Exception as e:

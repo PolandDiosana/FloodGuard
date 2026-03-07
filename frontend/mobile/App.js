@@ -16,6 +16,7 @@ import {
   KeyboardAvoidingView,
   Alert,
   ActivityIndicator,
+  RefreshControl,
   Animated,
   Easing,
   useWindowDimensions,
@@ -106,6 +107,20 @@ const SENSOR_POINTS = [
 ];
 
 const USER_LOCATION = { latitude: 10.3165, longitude: 123.9176 };
+
+const getDistance = (lat1, lon1, lat2, lon2) => {
+  if (!lat1 || !lon1 || !lat2 || !lon2) return "N/A";
+  const R = 6371; // km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c;
+  return d.toFixed(1) + " km";
+};
 const SAFE_ROUTE = [
   { latitude: 10.3165, longitude: 123.9176 },
   { latitude: 10.3178, longitude: 123.9185 },
@@ -1575,6 +1590,14 @@ const CustomHeader = ({ navigation, title, subtitle }) => {
 
   useEffect(() => {
     loadReadIds();
+    fetchNotifications(); // Initial fetch
+
+    // Set up polling interval (every 30 seconds)
+    const interval = setInterval(() => {
+      fetchNotifications(true); // true indicates a background poll
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const loadReadIds = async () => {
@@ -1611,9 +1634,9 @@ const CustomHeader = ({ navigation, title, subtitle }) => {
 
   const unreadCount = notifications.filter(n => !readIds.includes(n.id)).length;
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (isBackground = false) => {
     try {
-      setLoading(true);
+      if (!isBackground) setLoading(true);
       const [alertsRes, reportsRes] = await Promise.all([
         fetch("http://172.16.17.33:5000/api/alerts/"),
         fetch("http://172.16.17.33:5000/api/reports/")
@@ -1646,10 +1669,38 @@ const CustomHeader = ({ navigation, title, subtitle }) => {
         new Date(b.timestamp) - new Date(a.timestamp)
       );
 
-      setNotifications(combined.slice(0, 5)); // Show only latest 5 for overlay
+      const latestItems = combined.slice(0, 5);
+
+      // Pop-up logic for new alerts
+      if (latestItems.length > 0) {
+        const latestId = latestItems[0].id;
+        const storedLastId = await AsyncStorage.getItem("last_notif_id");
+
+        if (storedLastId && storedLastId !== latestId) {
+          const newItem = latestItems[0];
+          // Show pop-up for new items
+          Alert.alert(
+            "📢 New Notification",
+            newItem.title || newItem.type,
+            [
+              {
+                text: "View", onPress: () => {
+                  if (newItem.sourceType === 'announcement') {
+                    navigation.navigate("AlertDetail", { alert: newItem });
+                  }
+                }
+              },
+              { text: "Dismiss", style: "cancel" }
+            ]
+          );
+        }
+        await AsyncStorage.setItem("last_notif_id", latestId);
+      }
+
+      setNotifications(latestItems);
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching notificationscenter data:", error);
+      console.error("Error fetching notifications:", error);
       setLoading(false);
     }
   };
@@ -2133,7 +2184,10 @@ const AlertsScreen = ({ navigation }) => {
     let accent = "#32c26a";
     let statusLabel = "NORMAL MONITORING";
 
-    if (alert.severity === "critical" || alert.title?.toLowerCase().includes("evacuat")) {
+    if (alert.title?.toLowerCase().includes("new evacuation center")) {
+      accent = "#2fb864"; // SAFE GREEN
+      statusLabel = "SAFE ZONE AVAILABLE";
+    } else if (alert.severity === "critical" || alert.title?.toLowerCase().includes("evacuat")) {
       accent = "#e2463b"; // RED
       statusLabel = "ASSISTED EVACUATION";
     } else if (alert.severity === "warning" || alert.title?.toLowerCase().includes("pre-emptive")) {
@@ -2317,10 +2371,66 @@ const EvacuationScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const styles = getStyles(theme);
 
+  const [centers, setCenters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const getDistance = (lat1, lon1, lat2, lon2) => {
+    const R = 6371; // Radius of Earth in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const distance = R * c; // Distance in km
+    return `${distance.toFixed(1)} km away`;
+  };
+
+  const fetchCenters = async () => {
+    try {
+      const response = await fetch("http://172.16.17.33:5000/api/evacuation-centers/");
+      const data = await response.json();
+      const mapped = data.map(c => {
+        const lat = parseFloat(c.lat);
+        const lng = parseFloat(c.lng);
+        return {
+          ...c,
+          id: c.id.toString(),
+          coordinate: { latitude: lat, longitude: lng },
+          slots: Math.max(0, parseInt(c.capacity) - parseInt(c.slots_filled)),
+          distanceVal: Math.sqrt(Math.pow(lat - USER_LOCATION.latitude, 2) + Math.pow(lng - USER_LOCATION.longitude, 2)), // Simple prox sort
+          distance: getDistance(USER_LOCATION.latitude, USER_LOCATION.longitude, lat, lng),
+        };
+      });
+
+      // Sort by proximity
+      mapped.sort((a, b) => a.distanceVal - b.distanceVal);
+
+      setCenters(mapped);
+      setLoading(false);
+    } catch (error) {
+      console.error("Error fetching evacuation centers:", error);
+      setLoading(false);
+    }
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchCenters();
+    }, [])
+  );
+
+  const onRefresh = React.useCallback(() => {
+    setRefreshing(true);
+    fetchCenters().then(() => setRefreshing(false));
+  }, []);
+
   const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
   const bottomInset = Platform.OS === "android" ? 32 : 16;
 
-  const nearestCenter = EVAC_CENTERS[0];
+  const nearestCenter = centers.length > 0 ? centers[0] : null;
 
   return (
     <SafeAreaView style={styles.dashboardSafe}>
@@ -2331,142 +2441,154 @@ const EvacuationScreen = ({ navigation }) => {
           { paddingBottom: 140 + bottomInset },
         ]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#74C5E6" />
+        }
       >
-        <Card style={styles.routeCard}>
-          <View style={styles.routeHeader}>
-            <Text style={styles.routeTitle}>Nearest Safe Route</Text>
-            <View style={styles.routeBadge}>
-              <Text style={styles.routeBadgeText}>Safe</Text>
-            </View>
+        {loading && centers.length === 0 ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 100 }}>
+            <ActivityIndicator size="large" color="#74C5E6" />
+            <Text style={{ color: theme.textSecondary, marginTop: 12 }}>Loading evacuation centers...</Text>
           </View>
-          <Text style={styles.routeDistance}>0.8 km away</Text>
-          <PrimaryButton
-            label="Start Navigation"
-            onPress={() => navigation.navigate("ActiveNavigation", { center: nearestCenter })}
-            style={styles.routeButton}
-          />
-        </Card>
-
-        <Card style={styles.mapCard}>
-          <View style={styles.mapHeader}>
-            <Text style={styles.evacMapTitle}>Evacuation Route Map</Text>
-            <View style={styles.routeStatusPill}>
-              <Text style={styles.routeStatusText}>Safe Route Available</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.mapPreview}
-            activeOpacity={0.85}
-            onPress={() => navigation.navigate("EvacuationMap")}
-          >
-            <MapView
-              style={styles.mapPreviewMap}
-              initialRegion={MABOLO_REGION}
-              pitchEnabled={false}
-              rotateEnabled={false}
-              scrollEnabled={false}
-              zoomEnabled={false}
-            >
-              <Polyline coordinates={SAFE_ROUTE} strokeColor="#74C5E6" strokeWidth={4} />
-              <Polygon
-                coordinates={FLOOD_ZONE}
-                strokeColor="#e2463b"
-                fillColor="rgba(226,70,59,0.2)"
-                strokeWidth={2}
-              />
-              {EVAC_CENTERS.map((center) => (
-                <Marker
-                  key={center.id}
-                  coordinate={center.coordinate}
-                  pinColor={center.status === "open" ? "#2fb864" : "#f35b5b"}
-                />
-              ))}
-              <Marker coordinate={USER_LOCATION} pinColor="#74C5E6" />
-            </MapView>
-            <View style={styles.mapPreviewOverlay}>
-              <Text style={styles.mapSubtitle}>Tap to view full route</Text>
-            </View>
-          </TouchableOpacity>
-        </Card>
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Evacuation Centers</Text>
-          <Text style={styles.sectionHint}>3 centers nearby</Text>
-        </View>
-
-        {EVAC_CENTERS.map((center) => (
-          <Card key={center.id} style={styles.centerCard}>
-            <View style={styles.centerHeader}>
-              <View style={styles.centerTitleWrapper}>
-                <Text style={styles.centerTitle}>{center.name}</Text>
-                <View style={styles.centerMetaRow}>
-                  <View style={styles.centerMetaItem}>
-                    <Feather name="navigation" size={12} color={theme.textSecondary} />
-                    <Text style={styles.centerDistanceText}>{center.distance} away</Text>
-                  </View>
-                  <View style={styles.centerMetaItem}>
-                    <Feather name="users" size={12} color={theme.textSecondary} />
-                    <Text style={styles.centerCapacityText}>Cap: {center.capacity}</Text>
-                  </View>
+        ) : (
+          <>
+            <Card style={styles.routeCard}>
+              <View style={styles.routeHeader}>
+                <Text style={styles.routeTitle}>Nearest Safe Route</Text>
+                <View style={styles.routeBadge}>
+                  <Text style={styles.routeBadgeText}>Safe</Text>
                 </View>
               </View>
-              <View
-                style={[
-                  styles.centerStatus,
-                  center.status === "open" ? styles.centerOpen : styles.centerFull,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.centerStatusText,
-                    { color: center.status === "open" ? "#2fb864" : "#ef4444" },
-                  ]}
-                >
-                  {center.status === "open" ? "OPEN" : "FULL"}
-                </Text>
+              <Text style={styles.routeDistance}>0.8 km away</Text>
+              <PrimaryButton
+                label="Start Navigation"
+                onPress={() => navigation.navigate("ActiveNavigation", { center: nearestCenter })}
+                style={styles.routeButton}
+              />
+            </Card>
+
+            <Card style={styles.mapCard}>
+              <View style={styles.mapHeader}>
+                <Text style={styles.evacMapTitle}>Evacuation Route Map</Text>
+                <View style={styles.routeStatusPill}>
+                  <Text style={styles.routeStatusText}>Safe Route Available</Text>
+                </View>
               </View>
+              <TouchableOpacity
+                style={styles.mapPreview}
+                activeOpacity={0.85}
+                onPress={() => navigation.navigate("EvacuationMap", { centers })}
+              >
+                <MapView
+                  style={styles.mapPreviewMap}
+                  initialRegion={MABOLO_REGION}
+                  pitchEnabled={false}
+                  rotateEnabled={false}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                >
+                  <Polyline coordinates={SAFE_ROUTE} strokeColor="#74C5E6" strokeWidth={4} />
+                  <Polygon
+                    coordinates={FLOOD_ZONE}
+                    strokeColor="#e2463b"
+                    fillColor="rgba(226,70,59,0.2)"
+                    strokeWidth={2}
+                  />
+                  {centers.map((center) => (
+                    <Marker
+                      key={center.id}
+                      coordinate={center.coordinate}
+                      pinColor={center.status === "open" ? "#2fb864" : "#f59e0b"}
+                    />
+                  ))}
+                  <Marker coordinate={USER_LOCATION} pinColor="#74C5E6" />
+                </MapView>
+                <View style={styles.mapPreviewOverlay}>
+                  <Text style={styles.mapSubtitle}>Tap to view full route</Text>
+                </View>
+              </TouchableOpacity>
+            </Card>
+
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Evacuation Centers</Text>
+              <Text style={styles.sectionHint}>{centers.length} centers nearby</Text>
             </View>
 
-            <View style={styles.centerActionsRow}>
-              <TouchableOpacity
-                style={styles.centerActionBtnSecondary}
-                onPress={() => callCenter(center.phone)}
-              >
-                <Feather name="phone" size={16} color={theme.primary} />
-                <Text style={styles.centerActionBtnTextSecondary}>Call</Text>
-              </TouchableOpacity>
+            {centers.map((center) => (
+              <Card key={center.id} style={styles.centerCard}>
+                <View style={styles.centerHeader}>
+                  <View style={styles.centerTitleWrapper}>
+                    <Text style={styles.centerTitle}>{center.name}</Text>
+                    <View style={styles.centerMetaRow}>
+                      <View style={styles.centerMetaItem}>
+                        <Feather name="navigation" size={12} color={theme.textSecondary} />
+                        <Text style={styles.centerDistanceText}>{center.distance} away</Text>
+                      </View>
+                      <View style={styles.centerMetaItem}>
+                        <Feather name="users" size={12} color={theme.textSecondary} />
+                        <Text style={styles.centerCapacityText}>Cap: {center.capacity}</Text>
+                      </View>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.centerStatus,
+                      center.status === "open" ? styles.centerOpen : styles.centerFull,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.centerStatusText,
+                        { color: center.status === "open" ? "#2fb864" : "#f59e0b" },
+                      ]}
+                    >
+                      {center.status === "open" ? "OPEN" : "FULL"}
+                    </Text>
+                  </View>
+                </View>
 
-              <TouchableOpacity
-                style={[
-                  styles.centerActionBtnPrimary,
-                  center.status !== "open" && styles.centerActionBtnDisabled
-                ]}
-                onPress={() => openDirections(center.coordinate, center.name)}
-                disabled={center.status !== "open"}
-              >
-                <LinearGradient
-                  colors={center.status === "open" ? theme.brandGradient : ["#4b5563", "#4b5563"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.centerActionBtnGradient}
-                >
-                  <Feather name="map-pin" size={16} color="#fff" />
-                  <Text style={styles.centerActionBtnTextPrimary}>Navigate</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+                <View style={styles.centerActionsRow}>
+                  <TouchableOpacity
+                    style={styles.centerActionBtnSecondary}
+                    onPress={() => callCenter(center.phone)}
+                  >
+                    <Feather name="phone" size={16} color={theme.primary} />
+                    <Text style={styles.centerActionBtnTextSecondary}>Call</Text>
+                  </TouchableOpacity>
 
-            {center.status !== "open" && (
-              <View style={styles.centerFullNotice}>
-                <Feather name="alert-circle" size={12} color="#ef4444" />
-                <Text style={styles.centerFullNoticeText}>
-                  Center is full. Please use another nearby center.
-                </Text>
-              </View>
-            )}
-          </Card>
-        ))}
+                  <TouchableOpacity
+                    style={[
+                      styles.centerActionBtnPrimary,
+                      center.status !== "open" && styles.centerActionBtnDisabled
+                    ]}
+                    onPress={() => openDirections(center.coordinate, center.name)}
+                    disabled={center.status !== "open"}
+                  >
+                    <LinearGradient
+                      colors={center.status === "open" ? theme.brandGradient : ["#4b5563", "#4b5563"]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.centerActionBtnGradient}
+                    >
+                      <Feather name="map-pin" size={16} color="#fff" />
+                      <Text style={styles.centerActionBtnTextPrimary}>Navigate</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
 
+                {center.status !== "open" && (
+                  <View style={styles.centerFullNotice}>
+                    <Feather name="alert-circle" size={12} color="#ef4444" />
+                    <Text style={styles.centerFullNoticeText}>
+                      Center is full. Please use another nearby center.
+                    </Text>
+                  </View>
+                )}
+              </Card>
+            ))}
+
+          </>
+        )}
         <Card style={styles.offlineNotice}>
           <Text style={styles.offlineText}>
             Offline Mode: Evacuation routes are cached and available without
@@ -2533,12 +2655,19 @@ const ActiveNavigationScreen = ({ navigation, route }) => {
         <View style={styles.navStats}>
           <View style={styles.navStatItem}>
             <Ionicons name="time" size={16} color="#74C5E6" />
-            <Text style={styles.navStatText}>12 min</Text>
+            <Text style={styles.navStatText}>
+              {(() => {
+                const distKm = parseFloat(center.distance);
+                const walkingSpeedKmh = 5;
+                const timeMin = Math.round((distKm / walkingSpeedKmh) * 60);
+                return `${timeMin} min`;
+              })()}
+            </Text>
           </View>
           <View style={styles.navStatDivider} />
           <View style={styles.navStatItem}>
             <Ionicons name="navigate" size={16} color="#74C5E6" />
-            <Text style={styles.navStatText}>0.8 km</Text>
+            <Text style={styles.navStatText}>{center.distance}</Text>
           </View>
         </View>
 
@@ -3199,9 +3328,11 @@ const SettingsScreen = ({ navigation }) => {
   );
 };
 
-const EvacuationMapScreen = ({ navigation }) => {
+const EvacuationMapScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
   const styles = getStyles(theme);
+
+  const centers = route?.params?.centers ?? EVAC_CENTERS;
 
   const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
   const bottomInset = Platform.OS === "android" ? 32 : 16;
@@ -3227,11 +3358,11 @@ const EvacuationMapScreen = ({ navigation }) => {
             fillColor="rgba(226,70,59,0.25)"
             strokeWidth={2}
           />
-          {EVAC_CENTERS.map((center) => (
+          {centers.map((center) => (
             <Marker
               key={center.id}
               coordinate={center.coordinate}
-              pinColor={center.status === "open" ? "#2fb864" : "#f35b5b"}
+              pinColor={center.status === "open" ? "#2fb864" : "#f59e0b"}
               title={center.name}
             />
           ))}
@@ -4236,8 +4367,8 @@ const getStyles = (theme) => StyleSheet.create({
     borderColor: "rgba(47, 184, 100, 0.2)",
   },
   centerFull: {
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    borderColor: "rgba(239, 68, 68, 0.2)",
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    borderColor: "rgba(245, 158, 11, 0.2)",
   },
   centerStatusText: {
     fontSize: 10,

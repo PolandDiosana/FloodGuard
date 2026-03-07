@@ -23,7 +23,7 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
         lat: "",
         lng: "",
         capacity: "0",
-        phone: "",
+        phone: "911",
         status: "open"
     });
 
@@ -32,14 +32,6 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
     const [isReverseGeocoding, setIsReverseGeocoding] = useState(false);
     const mapRef = React.useRef(null);
     const markerRef = React.useRef(null);
-
-    const SITIOS_MABOLO = [
-        "Almendras", "Banilad (Mabolo)", "Cabantan", "Casals Village",
-        "Castle Peak", "Holy Name", "M.J. Cuenco", "Panagdait",
-        "San Isidro", "San Roque", "San Vicente", "Santo Niño",
-        "Sindulan", "Soriano", "Tres Borces"
-    ];
-    const [showLocationDropdown, setShowLocationDropdown] = useState(false);
 
     const fetchCenters = async () => {
         try {
@@ -75,8 +67,11 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
                 const data = await response.json();
                 if (data && data.display_name) {
                     setPinnedAddress(data.display_name);
+                    setForm(prev => ({ ...prev, location: data.display_name }));
                 } else {
+                    const fallback = `${lat}, ${lng}`;
                     setPinnedAddress("Address not found");
+                    setForm(prev => ({ ...prev, location: fallback }));
                 }
             } catch (error) {
                 console.error("Reverse geocoding failed", error);
@@ -182,7 +177,7 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
                 alert("Evacuation center added successfully");
                 setShowAddModal(false);
                 setCurrentStep(1);
-                setForm({ name: "", location: "", lat: "", lng: "", capacity: "0", phone: "", status: "open" });
+                setForm({ name: "", location: "", lat: "", lng: "", capacity: "0", phone: "911", status: "open" });
                 setPinnedAddress("");
                 fetchCenters();
             } else {
@@ -398,169 +393,149 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
                         )}
                     </View>
                 </ScrollView>
+            </View>
 
-                {/* Add/Edit Modal */}
-                {(showAddModal || showEditModal) && (
-                    <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
-                        <View style={{ width: 800, backgroundColor: "#fff", borderRadius: 20, overflow: 'hidden' }}>
-                            <LinearGradient
-                                colors={["#1d4ed8", "#3b82f6"]}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                                style={{ padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
-                            >
+            {(showAddModal || showEditModal) && (
+                <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center", zIndex: 1000 }}>
+                    <View style={{ width: 800, backgroundColor: "#fff", borderRadius: 20, overflow: 'hidden' }}>
+                        <LinearGradient
+                            colors={["#1d4ed8", "#3b82f6"]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={{ padding: 20, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}
+                        >
+                            <View>
+                                <Text style={{ fontSize: 18, fontWeight: "bold", color: "#fff" }}>
+                                    {showAddModal ? "Add New Evacuation Center" : "Edit Evacuation Center"}
+                                </Text>
+                                <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
+                                    {currentStep === 1 ? "Step 1: Pin Exact Location" : "Step 2: Enter Facility Details"}
+                                </Text>
+                            </View>
+                            <TouchableOpacity onPress={() => { setShowAddModal(false); setShowEditModal(false); setCurrentStep(1); }}>
+                                <Feather name="x" size={24} color="#fff" />
+                            </TouchableOpacity>
+                        </LinearGradient>
+
+                        <View style={{ padding: 24 }}>
+                            {currentStep === 1 ? (
                                 <View>
-                                    <Text style={{ fontSize: 18, fontWeight: "bold", color: "#fff" }}>
-                                        {showAddModal ? "Add New Evacuation Center" : "Edit Evacuation Center"}
+                                    <Text style={{ fontSize: 14, color: "#475569", marginBottom: 16 }}>
+                                        Click on the map to pin the exact location of the evacuation center.
                                     </Text>
-                                    <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.8)" }}>
-                                        {currentStep === 1 ? "Step 1: Pin Exact Location" : "Step 2: Enter Facility Details"}
-                                    </Text>
-                                </View>
-                                <TouchableOpacity onPress={() => { setShowAddModal(false); setShowEditModal(false); setCurrentStep(1); }}>
-                                    <Feather name="x" size={24} color="#fff" />
-                                </TouchableOpacity>
-                            </LinearGradient>
+                                    <View
+                                        nativeID="pin-map-container"
+                                        style={{ height: 500, backgroundColor: "#f1f5f9", borderRadius: 12, marginBottom: 20, overflow: 'hidden' }}
+                                    />
 
-                            <View style={{ padding: 24 }}>
-                                {currentStep === 1 ? (
-                                    <View>
-                                        <Text style={{ fontSize: 14, color: "#475569", marginBottom: 16 }}>
-                                            Click on the map to pin the exact location of the evacuation center.
-                                        </Text>
-                                        <View
-                                            nativeID="pin-map-container"
-                                            style={{ height: 500, backgroundColor: "#f1f5f9", borderRadius: 12, marginBottom: 20, overflow: 'hidden' }}
-                                        />
-
-                                        {form.lat ? (
-                                            <View style={{ backgroundColor: "#eff6ff", padding: 16, borderRadius: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#dbeafe' }}>
-                                                <View style={{ backgroundColor: '#2563eb', padding: 10, borderRadius: 10, marginRight: 12 }}>
-                                                    <Feather name="map-pin" size={20} color="#fff" />
-                                                </View>
-                                                <View style={{ flex: 1 }}>
-                                                    <Text style={{ color: "#1e40af", fontSize: 13, fontWeight: '700', marginBottom: 2 }}>
-                                                        {isReverseGeocoding ? "Fetching address..." : "Selected Location:"}
-                                                    </Text>
-                                                    <Text style={{ color: "#3b82f6", fontSize: 14, lineHeight: 20 }}>
-                                                        {isReverseGeocoding ? "Identifying place..." : (pinnedAddress || `${form.lat}, ${form.lng}`)}
-                                                    </Text>
-                                                </View>
+                                    {form.lat ? (
+                                        <View style={{ backgroundColor: "#eff6ff", padding: 16, borderRadius: 12, marginBottom: 16, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#dbeafe' }}>
+                                            <View style={{ backgroundColor: '#2563eb', padding: 10, borderRadius: 10, marginRight: 12 }}>
+                                                <Feather name="map-pin" size={20} color="#fff" />
                                             </View>
-                                        ) : null}
-
-                                        <TouchableOpacity
-                                            style={[modalStyles.submitBtn, { backgroundColor: !form.lat ? "#94a3b8" : "#2563eb", marginTop: 0 }]}
-                                            disabled={!form.lat}
-                                            onPress={() => setCurrentStep(2)}
-                                        >
-                                            <Text style={modalStyles.submitBtnText}>Continue to Details</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                ) : (
-                                    <ScrollView style={{ maxHeight: "70vh" }}>
-                                        <TouchableOpacity
-                                            onPress={() => setCurrentStep(1)}
-                                            style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, padding: 8, backgroundColor: "#f8fafc", borderRadius: 8, alignSelf: 'flex-start' }}
-                                        >
-                                            <Feather name="arrow-left" size={14} color="#64748b" />
-                                            <Text style={{ fontSize: 13, color: "#64748b", marginLeft: 4 }}>Back to Map</Text>
-                                        </TouchableOpacity>
-
-                                        <Text style={modalStyles.label}>Center Name</Text>
-                                        <TextInput
-                                            style={modalStyles.input}
-                                            placeholder="e.g. Barangay Hall Mabolo"
-                                            value={form.name}
-                                            onChangeText={(text) => setForm({ ...form, name: text })}
-                                        />
-
-                                        <Text style={modalStyles.label}>Location (Sitio)</Text>
-                                        <TouchableOpacity
-                                            style={modalStyles.input}
-                                            onPress={() => setShowLocationDropdown(!showLocationDropdown)}
-                                        >
-                                            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                                                <Text style={{ color: form.location ? "#0f172a" : "#94a3b8" }}>
-                                                    {form.location || "Select Sitio"}
+                                            <View style={{ flex: 1 }}>
+                                                <Text style={{ color: "#1e40af", fontSize: 13, fontWeight: '700', marginBottom: 2 }}>
+                                                    {isReverseGeocoding ? "Fetching address..." : "Selected Location:"}
                                                 </Text>
-                                                <Feather name="chevron-down" size={18} color="#94a3b8" />
-                                            </View>
-                                        </TouchableOpacity>
-                                        {showLocationDropdown && (
-                                            <View style={modalStyles.dropdown}>
-                                                <ScrollView nestedScrollEnabled={true}>
-                                                    {SITIOS_MABOLO.map((sitio, index) => (
-                                                        <TouchableOpacity
-                                                            key={index}
-                                                            style={modalStyles.dropdownItem}
-                                                            onPress={() => {
-                                                                setForm({ ...form, location: sitio });
-                                                                setShowLocationDropdown(false);
-                                                            }}
-                                                        >
-                                                            <Text>{sitio}</Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </ScrollView>
-                                            </View>
-                                        )}
-
-                                        <View style={{ flexDirection: "row", gap: 16 }}>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={modalStyles.label}>Total Capacity</Text>
-                                                <TextInput
-                                                    style={modalStyles.input}
-                                                    placeholder="200"
-                                                    keyboardType="numeric"
-                                                    value={form.capacity}
-                                                    onChangeText={(text) => setForm({ ...form, capacity: text })}
-                                                />
-                                            </View>
-                                            <View style={{ flex: 1 }}>
-                                                <Text style={modalStyles.label}>Phone Number</Text>
-                                                <TextInput
-                                                    style={modalStyles.input}
-                                                    placeholder="+63 9xx..."
-                                                    value={form.phone}
-                                                    onChangeText={(text) => setForm({ ...form, phone: text })}
-                                                />
+                                                <Text style={{ color: "#3b82f6", fontSize: 14, lineHeight: 20 }}>
+                                                    {isReverseGeocoding ? "Identifying place..." : (pinnedAddress || `${form.lat}, ${form.lng}`)}
+                                                </Text>
                                             </View>
                                         </View>
+                                    ) : null}
 
-                                        {showEditModal && (
-                                            <View style={{ marginBottom: 16 }}>
-                                                <Text style={modalStyles.label}>Status</Text>
-                                                <View style={{ flexDirection: "row", gap: 8 }}>
-                                                    {["open", "full", "closed"].map(s => (
-                                                        <TouchableOpacity
-                                                            key={s}
-                                                            style={[modalStyles.statusBtn, form.status === s && modalStyles.statusBtnActive]}
-                                                            onPress={() => setForm({ ...form, status: s })}
-                                                        >
-                                                            <Text style={{ color: form.status === s ? "#fff" : "#64748b", textTransform: "capitalize" }}>{s}</Text>
-                                                        </TouchableOpacity>
-                                                    ))}
-                                                </View>
+                                    <TouchableOpacity
+                                        style={[modalStyles.submitBtn, { backgroundColor: !form.lat ? "#94a3b8" : "#2563eb", marginTop: 0 }]}
+                                        disabled={!form.lat}
+                                        onPress={() => setCurrentStep(2)}
+                                    >
+                                        <Text style={modalStyles.submitBtnText}>Continue to Details</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <ScrollView style={{ maxHeight: "70vh" }}>
+                                    <TouchableOpacity
+                                        onPress={() => setCurrentStep(1)}
+                                        style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20, padding: 8, backgroundColor: "#f8fafc", borderRadius: 8, alignSelf: 'flex-start' }}
+                                    >
+                                        <Feather name="arrow-left" size={14} color="#64748b" />
+                                        <Text style={{ fontSize: 13, color: "#64748b", marginLeft: 4 }}>Back to Map</Text>
+                                    </TouchableOpacity>
+
+                                    <Text style={modalStyles.label}>Center Name</Text>
+                                    <TextInput
+                                        style={modalStyles.input}
+                                        placeholder="e.g. Barangay Hall Mabolo"
+                                        value={form.name}
+                                        onChangeText={(text) => setForm({ ...form, name: text })}
+                                    />
+
+                                    <Text style={modalStyles.label}>Pinned Location</Text>
+                                    <View style={[modalStyles.input, { backgroundColor: "#f8fafc", flexDirection: 'row', alignItems: 'center' }]}>
+                                        <Feather name="map-pin" size={16} color="#64748b" style={{ marginRight: 8 }} />
+                                        <Text style={{ color: "#475569", flex: 1 }} numberOfLines={2}>
+                                            {isReverseGeocoding ? "Updating location..." : (form.location || "No location pinned")}
+                                        </Text>
+                                    </View>
+
+                                    <View style={{ flexDirection: "row", gap: 16 }}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={modalStyles.label}>Total Capacity</Text>
+                                            <TextInput
+                                                style={modalStyles.input}
+                                                placeholder="200"
+                                                keyboardType="numeric"
+                                                value={form.capacity}
+                                                onChangeText={(text) => setForm({ ...form, capacity: text })}
+                                            />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={modalStyles.label}>Phone Number</Text>
+                                            <TextInput
+                                                style={modalStyles.input}
+                                                placeholder="911"
+                                                keyboardType="numeric"
+                                                value={form.phone}
+                                                onChangeText={(text) => {
+                                                    const numericValue = text.replace(/[^0-9]/g, '');
+                                                    setForm({ ...form, phone: numericValue });
+                                                }}
+                                            />
+                                        </View>
+                                    </View>
+
+                                    {showEditModal && (
+                                        <View style={{ marginBottom: 16 }}>
+                                            <Text style={modalStyles.label}>Status</Text>
+                                            <View style={{ flexDirection: "row", gap: 8 }}>
+                                                {["open", "full", "closed"].map(s => (
+                                                    <TouchableOpacity
+                                                        key={s}
+                                                        style={[modalStyles.statusBtn, form.status === s && modalStyles.statusBtnActive]}
+                                                        onPress={() => setForm({ ...form, status: s })}
+                                                    >
+                                                        <Text style={{ color: form.status === s ? "#fff" : "#64748b", textTransform: "capitalize" }}>{s}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
                                             </View>
-                                        )}
+                                        </View>
+                                    )}
 
-                                        <TouchableOpacity
-                                            style={[modalStyles.submitBtn, { backgroundColor: isSubmitting ? "#94a3b8" : "#2563eb" }]}
-                                            disabled={isSubmitting}
-                                            onPress={showAddModal ? handleCreateCenter : handleUpdateCenter}
-                                        >
-                                            <Text style={modalStyles.submitBtnText}>
-                                                {isSubmitting ? "Processing..." : showAddModal ? "Create Center" : "Save Changes"}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </ScrollView>
-                                )}
-                            </View>
+                                    <TouchableOpacity
+                                        style={[modalStyles.submitBtn, { backgroundColor: isSubmitting ? "#94a3b8" : "#2563eb" }]}
+                                        disabled={isSubmitting}
+                                        onPress={showAddModal ? handleCreateCenter : handleUpdateCenter}
+                                    >
+                                        <Text style={modalStyles.submitBtnText}>
+                                            {isSubmitting ? "Processing..." : showAddModal ? "Create Center" : "Save Changes"}
+                                        </Text>
+                                    </TouchableOpacity>
+                                </ScrollView>
+                            )}
                         </View>
                     </View>
-                )}
-            </View>
+                </View>
+            )}
         </View>
     );
 };
@@ -570,8 +545,6 @@ const modalStyles = {
     input: { borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8, padding: 12, fontSize: 14, color: "#0f172a", backgroundColor: "#fff" },
     submitBtn: { marginTop: 24, paddingVertical: 14, borderRadius: 10, alignItems: "center", marginBottom: 40 },
     submitBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
-    dropdown: { position: "absolute", top: 80, left: 0, right: 0, backgroundColor: "#fff", borderBottomLeftRadius: 8, borderBottomRightRadius: 8, borderWidth: 1, borderColor: "#e2e8f0", maxHeight: 150, zIndex: 100 },
-    dropdownItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: "#f1f5f9" },
     statusBtn: { flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "#e2e8f0", alignItems: "center" },
     statusBtnActive: { backgroundColor: "#2563eb", borderColor: "#2563eb" }
 };
