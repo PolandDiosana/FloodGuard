@@ -2931,6 +2931,7 @@ const ReportScreen = ({ navigation, userName }) => {
             style={styles.reportInput}
             multiline
             placeholder="Describe what you are observing..."
+            placeholderTextColor="#94a3b8"
             value={description}
             onChangeText={setDescription}
           />
@@ -3015,7 +3016,6 @@ const ReportScreen = ({ navigation, userName }) => {
 const SettingsScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const styles = getStyles(theme);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
   const bottomInset = Platform.OS === "android" ? 32 : 16;
@@ -3058,16 +3058,6 @@ const SettingsScreen = ({ navigation }) => {
     }
   };
 
-  const onLogout = async () => {
-    setShowLogoutModal(true);
-  };
-
-  const handleLogout = async () => {
-    setShowLogoutModal(false);
-    await AsyncStorage.removeItem('userToken');
-    await AsyncStorage.removeItem('userData');
-    navigation.replace("Landing");
-  };
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -3296,20 +3286,11 @@ const SettingsScreen = ({ navigation }) => {
           </Text>
         </Card>
 
-        <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-          <Ionicons name="log-out" size={18} color="#e2463b" />
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
 
         <View style={styles.settingsFooter}>
           <Text style={styles.settingsFooterText}>Flood Monitor v1.0.0</Text>
           <Text style={styles.settingsFooterText}>Capstone Project 2025</Text>
         </View>
-        <LogoutConfirmationModal
-          visible={showLogoutModal}
-          onConfirm={handleLogout}
-          onCancel={() => setShowLogoutModal(false)}
-        />
         <EditProfileModal
           visible={showEditProfile}
           userData={userData}
@@ -4673,6 +4654,7 @@ const getStyles = (theme) => StyleSheet.create({
     padding: 12,
     textAlignVertical: "top",
     backgroundColor: theme.surface,
+    color: "#FFFFFF",
   },
   reportPhotoRow: {
     flexDirection: "row",
@@ -4803,6 +4785,11 @@ const getStyles = (theme) => StyleSheet.create({
     fontSize: 11,
     color: theme.textSecondary,
     marginTop: 4,
+  },
+  profilePhone: {
+    fontSize: 11,
+    color: theme.textSecondary,
+    marginTop: 2,
   },
   settingsSection: {
     gap: 8,
