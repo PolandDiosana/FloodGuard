@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { styles as globalStyles } from "../styles/globalStyles";
+import LoadingOverlay from "../components/LoadingOverlay";
 
 // Animated Particle Component
 const Particle = ({ delay, startX, startY, size, color }) => {
@@ -367,12 +368,14 @@ const LandingPage = ({ onLoginSuccess, onNavigatePublic, initialLoginOpen, reset
                         </View>
 
                         {/* Submit Button */}
-                        <TouchableOpacity style={localStyles.submitBtn} onPress={handleLogin}>
+                        <TouchableOpacity style={localStyles.submitBtn} onPress={handleLogin} disabled={isLoading}>
                             <Feather name="lock" size={16} color="#ffffff" style={{ marginRight: 8 }} />
                             <Text style={localStyles.submitBtnText}>
-                                {isLoading ? "Authenticating..." : "Sign In"}
+                                Sign In
                             </Text>
                         </TouchableOpacity>
+
+                        {isLoading && <LoadingOverlay message="Authenticating..." />}
                     </View>
                 </View>
             )}

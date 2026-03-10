@@ -21,6 +21,7 @@ import ThresholdConfigPage from "./src/screens/ThresholdConfigPage";
 import AboutPage from "./src/screens/AboutPage";
 import FeaturesPage from "./src/screens/FeaturesPage";
 import ContactPage from "./src/screens/ContactPage";
+import LoadingOverlay from "./src/components/LoadingOverlay";
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -87,6 +88,7 @@ export default function App() {
         localStorage.removeItem("authToken");
         localStorage.removeItem("userRole");
         localStorage.removeItem("activePage");
+        sessionStorage.removeItem("welcomeBannerShown");
         document.body.style.backgroundColor = '#001D39';
       }
       setIsLoading(false);
@@ -163,13 +165,7 @@ export default function App() {
       {renderPage()}
 
       {/* Global Loading Overlay */}
-      {isLoading && (
-        <View style={styles.loadingOverlay}>
-          <View style={styles.loadingBox}>
-            <ActivityIndicator size="large" color="#4a7c59" />
-            <Text style={[styles.loadingText, { fontFamily: 'Poppins_600SemiBold' }]}>Logging Out...</Text>
-          </View>
-        </View>
-      )}    </View>
+      {isLoading && <LoadingOverlay message="Logging Out..." accentColor="#ef4444" />}
+    </View>
   );
 }
