@@ -4,6 +4,7 @@ import { Feather } from "@expo/vector-icons";
 import { styles } from "../styles/globalStyles";
 import AdminSidebar from "../components/AdminSidebar";
 import RealTimeClock from "../components/RealTimeClock";
+import { API_BASE_URL } from "../config/api";
 
 const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const [alertType, setAlertType] = useState("advisory");
@@ -108,7 +109,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
     const fetchPendingReports = async () => {
         try {
-            const response = await fetch("http://localhost:5000/api/reports?status=pending");
+            const response = await fetch(`${API_BASE_URL}/api/reports?status=pending`);
             const data = await response.json();
             setVerifications(data);
             setLoadingVerifications(false);
@@ -120,7 +121,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
     const fetchAllReports = async () => {
         try {
-            const response = await fetch("http://localhost:5000/api/reports");
+            const response = await fetch(`${API_BASE_URL}/api/reports`);
             const data = await response.json();
             setAllReports(data);
             setLoadingAllReports(false);
@@ -132,7 +133,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
     const fetchAlertHistory = async () => {
         try {
-            const response = await fetch("http://localhost:5000/api/alerts/");
+            const response = await fetch(`${API_BASE_URL}/api/alerts/`);
             const data = await response.json();
             setAlertHistory(data);
             setLoadingAlertHistory(false);
@@ -180,7 +181,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
         try {
             const barangayString = selectedBarangays.includes("All Barangays") ? "All" : selectedBarangays.join(", ");
 
-            const response = await fetch("http://localhost:5000/api/alerts/", {
+            const response = await fetch(`${API_BASE_URL}/api/alerts/`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -581,7 +582,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                                         borderRadius: 8,
                                                         alignSelf: 'flex-start'
                                                     }}
-                                                    onPress={() => setSelectedImage(`http://localhost:5000${item.image_url}`)}
+                                                    onPress={() => setSelectedImage(`${API_BASE_URL}${item.image_url}`)}
                                                 >
                                                     <Feather name="image" size={16} color="#475569" style={{ marginRight: 8 }} />
                                                     <Text style={{ color: "#475569", fontSize: 13, fontWeight: "600" }}>View Proof</Text>

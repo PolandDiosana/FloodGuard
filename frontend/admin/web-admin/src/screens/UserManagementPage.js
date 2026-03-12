@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { styles } from "../styles/globalStyles";
 import AdminSidebar from "../components/AdminSidebar";
 import RealTimeClock from "../components/RealTimeClock";
+import { API_BASE_URL } from "../config/api";
 
 const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) => {
     const [searchQuery, setSearchQuery] = useState("");
@@ -29,7 +30,7 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
 
     const fetchUsers = async () => {
         try {
-            const response = await fetch("http://localhost:5000/api/admin/users");
+            const response = await fetch(`${API_BASE_URL}/api/admin/users`);
             const data = await response.json();
             if (response.ok) {
                 // Map backend roles to frontend display roles
@@ -110,14 +111,14 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
         setIsSubmitting(true);
         try {
             // Update Status
-            const statusRes = await fetch(`http://localhost:5000/api/admin/users/${editingUser.id}/status`, {
+            const statusRes = await fetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}/status`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: editForm.status })
             });
 
             // Update Role
-            const roleRes = await fetch(`http://localhost:5000/api/admin/users/${editingUser.id}/role`, {
+            const roleRes = await fetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}/role`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ role: editForm.role })
@@ -140,7 +141,7 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
     const handleDeleteUser = async (userId) => {
         if (confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
             try {
-                const response = await fetch(`http://localhost:5000/api/admin/users/${userId}`, {
+                const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
                     method: "DELETE"
                 });
                 if (response.ok) {
@@ -180,7 +181,7 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
 
         setIsSubmitting(true);
         try {
-            const response = await fetch("http://localhost:5000/api/admin/create-lgu", {
+            const response = await fetch(`${API_BASE_URL}/api/admin/create-lgu`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -323,7 +324,7 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                                         <View style={styles.userAvatar}>
                                             {user.avatar_url ? (
                                                 <Image
-                                                    source={{ uri: `http://localhost:5000${user.avatar_url}` }}
+                                                    source={{ uri: `${API_BASE_URL}${user.avatar_url}` }}
                                                     style={{ width: "100%", height: "100%", borderRadius: 20 }}
                                                 />
                                             ) : (
@@ -534,7 +535,7 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                                 <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 24, padding: 12, backgroundColor: "#f8fafc", borderRadius: 12 }}>
                                     <View style={{ width: 48, height: 48, borderRadius: 24, backgroundColor: "#e2e8f0", justifyContent: "center", alignItems: "center", marginRight: 12, overflow: "hidden" }}>
                                         {editingUser?.avatar_url ? (
-                                            <Image source={{ uri: `http://localhost:5000${editingUser.avatar_url}` }} style={{ width: "100%", height: "100%" }} />
+                                            <Image source={{ uri: `${API_BASE_URL}${editingUser.avatar_url}` }} style={{ width: "100%", height: "100%" }} />
                                         ) : (
                                             <Text style={{ fontSize: 18, fontWeight: "bold", color: "#64748b" }}>{editingUser?.name?.substring(0, 2)}</Text>
                                         )}

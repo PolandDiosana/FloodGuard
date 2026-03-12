@@ -17,6 +17,7 @@ import {
 import { Ionicons, Feather } from "@expo/vector-icons";
 import { styles as globalStyles } from "../styles/globalStyles";
 import LoadingOverlay from "../components/LoadingOverlay";
+import { API_BASE_URL } from "../config/api";
 
 // Animated Particle Component
 const Particle = ({ delay, startX, startY, size, color }) => {
@@ -174,7 +175,7 @@ const LandingPage = ({ onLoginSuccess, onNavigatePublic, initialLoginOpen, reset
         try {
             console.log("Attempting login with:", email);
             const delayPromise = new Promise(resolve => setTimeout(resolve, 1500));
-            const loginPromise = fetch("http://localhost:5000/api/auth/login", {
+            const loginPromise = fetch(`${API_BASE_URL}/api/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ username: email, password: password }),

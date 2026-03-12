@@ -5,6 +5,7 @@ import AdminSidebar from "../components/AdminSidebar";
 import RealTimeClock from "../components/RealTimeClock";
 import LiveSensorStatus from "../components/LiveSensorStatus";
 import WelcomeBanner from "../components/WelcomeBanner";
+import { API_BASE_URL } from "../config/api";
 
 const AdminDashboard = ({ onNavigate, onLogout }) => {
     const [stats, setStats] = useState({
@@ -33,7 +34,7 @@ const AdminDashboard = ({ onNavigate, onLogout }) => {
 
     const fetchStats = async () => {
         try {
-            const response = await fetch("http://localhost:5000/api/dashboard/stats");
+            const response = await fetch(`${API_BASE_URL}/api/dashboard/stats`);
             const data = await response.json();
             setStats(data);
             setLoading(false);
