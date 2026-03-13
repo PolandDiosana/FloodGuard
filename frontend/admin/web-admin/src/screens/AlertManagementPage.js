@@ -21,6 +21,12 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
     const [selectedImage, setSelectedImage] = useState(null);
 
+    // Escalation Control State
+    const [activeAlerts, setActiveAlerts] = useState([]);
+    const [loadingActiveAlerts, setLoadingActiveAlerts] = useState(true);
+    const [escalatingId, setEscalatingId] = useState(null);
+    const [resolvingId, setResolvingId] = useState(null);
+
     // Broadcast Card Flip State
     const [isBroadcastFlipped, setIsBroadcastFlipped] = useState(false);
     const broadcastFlipAnim = useRef(new Animated.Value(0)).current;
@@ -99,13 +105,73 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
         fetchPendingReports();
         fetchAllReports();
         fetchAlertHistory();
+        fetchActiveAlerts();
         const interval = setInterval(() => {
             fetchPendingReports();
             fetchAllReports();
             fetchAlertHistory();
+            fetchActiveAlerts();
         }, 30000);
         return () => clearInterval(interval);
     }, []);
+
+    const fetchActiveAlerts = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/alerts/?status=active`);
+            const data = await response.json();
+            setActiveAlerts(Array.isArray(data) ? data : []);
+            setLoadingActiveAlerts(false);
+        } catch (error) {
+            console.error("Error fetching active alerts:", error);
+            setLoadingActiveAlerts(false);
+        }
+    };
+
+    const handleEscalate = async (alertId) => {
+        setEscalatingId(alertId);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/subscriptions/escalate/${alertId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ escalated_by: 'admin' })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                alert(`✅ Alert escalated: ${data.from_level} → ${data.to_level}`);
+                fetchActiveAlerts();
+                fetchAlertHistory();
+            } else {
+                alert(data.error || 'Failed to escalate alert.');
+            }
+        } catch (err) {
+            alert('Network error while escalating.');
+        } finally {
+            setEscalatingId(null);
+        }
+    };
+
+    const handleResolveAlert = async (alertId) => {
+        setResolvingId(alertId);
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/subscriptions/resolve/${alertId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resolved_by: 'admin' })
+            });
+            const data = await response.json();
+            if (response.ok) {
+                alert('✅ Alert resolved successfully.');
+                fetchActiveAlerts();
+                fetchAlertHistory();
+            } else {
+                alert(data.error || 'Failed to resolve alert.');
+            }
+        } catch (err) {
+            alert('Network error while resolving.');
+        } finally {
+            setResolvingId(null);
+        }
+    };
 
     const fetchPendingReports = async () => {
         try {
@@ -271,6 +337,102 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                         </View>
                         <RealTimeClock style={styles.dashboardTopDate} />
                     </View>
+                </View>
+
+                {/* ─── ESCALATION CONTROL PANEL ─── */}
+                <View style={{
+                    backgroundColor: '#fff',
+                    borderRadius: 16,
+                    borderWidth: 1,
+                    borderColor: '#e2e8f0',
+                    padding: 20,
+                    marginBottom: 20,
+                    shadowColor: '#000',
+                    shadowOpacity: 0.06,
+                    shadowRadius: 8,
+                    shadowOffset: { width: 0, height: 2 },
+                }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 }}>
+                        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#fef3c7', alignItems: 'center', justifyContent: 'center' }}>
+                            <Feather name="alert-triangle" size={20} color="#b45309" />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a' }}>Emergency Escalation Control</Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Manually escalate or resolve active alerts</Text>
+                        </View>
+                        <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#b91c1c' }}>{activeAlerts.length} ACTIVE</Text>
+                        </View>
+                    </View>
+
+                    {loadingActiveAlerts ? (
+                        <ActivityIndicator size="small" color="#b45309" />
+                    ) : activeAlerts.length === 0 ? (
+                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+                            <Feather name="check-circle" size={36} color="#16a34a" />
+                            <Text style={{ color: '#64748b', marginTop: 8, fontSize: 13 }}>No active alerts — all clear</Text>
+                        </View>
+                    ) : (
+                        <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+                            {activeAlerts.map(a => {
+                                const levelColors = {
+                                    advisory: { bg: '#dbeafe', text: '#1d4ed8' },
+                                    watch:    { bg: '#fef3c7', text: '#b45309' },
+                                    warning:  { bg: '#fee2e2', text: '#991b1b' },
+                                    critical: { bg: '#7f1d1d', text: '#fff' },
+                                };
+                                const lc = levelColors[a.level] || { bg: '#f1f5f9', text: '#64748b' };
+                                const isMaxLevel = a.level === 'critical';
+                                return (
+                                    <View key={a.id} style={{
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        paddingVertical: 10,
+                                        paddingHorizontal: 14,
+                                        backgroundColor: '#f8fafc',
+                                        borderRadius: 10,
+                                        marginBottom: 8,
+                                        borderWidth: 1,
+                                        borderColor: '#e2e8f0',
+                                        gap: 10,
+                                    }}>
+                                        <View style={{ backgroundColor: lc.bg, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 }}>
+                                            <Text style={{ fontSize: 10, fontWeight: '800', color: lc.text }}>{(a.level || '').toUpperCase()}</Text>
+                                        </View>
+                                        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: '#1e293b' }} numberOfLines={1}>{a.title}</Text>
+                                        <Text style={{ fontSize: 11, color: '#94a3b8' }}>{a.barangay}</Text>
+                                        <TouchableOpacity
+                                            onPress={() => handleEscalate(a.id)}
+                                            disabled={isMaxLevel || escalatingId === a.id}
+                                            style={[
+                                                { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+                                                isMaxLevel
+                                                    ? { backgroundColor: '#f1f5f9', opacity: 0.5 }
+                                                    : { backgroundColor: '#fef3c7' }
+                                            ]}
+                                        >
+                                            {escalatingId === a.id
+                                                ? <ActivityIndicator size="small" color="#b45309" />
+                                                : <><Feather name="chevrons-up" size={14} color={isMaxLevel ? '#94a3b8' : '#b45309'} />
+                                                  <Text style={{ fontSize: 12, fontWeight: '700', color: isMaxLevel ? '#94a3b8' : '#b45309' }}>Escalate</Text></>
+                                            }
+                                        </TouchableOpacity>
+                                        <TouchableOpacity
+                                            onPress={() => handleResolveAlert(a.id)}
+                                            disabled={resolvingId === a.id}
+                                            style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#dcfce7', flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                        >
+                                            {resolvingId === a.id
+                                                ? <ActivityIndicator size="small" color="#166534" />
+                                                : <><Feather name="check" size={14} color="#166534" />
+                                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>Resolve</Text></>
+                                            }
+                                        </TouchableOpacity>
+                                    </View>
+                                );
+                            })}
+                        </ScrollView>
+                    )}
                 </View>
 
                 <View style={styles.alertManagementContainer}>

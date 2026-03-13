@@ -1637,8 +1637,19 @@ const CustomHeader = ({ navigation, title, subtitle }) => {
   const fetchNotifications = async (isBackground = false) => {
     try {
       if (!isBackground) setLoading(true);
+
+      // Get user data to fetch personalized subscribed alerts
+      const storedUser = await AsyncStorage.getItem("userData");
+      let alertsUrl = "http://172.16.17.33:5000/api/alerts/";
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        if (user?.id) {
+          alertsUrl = `http://172.16.17.33:5000/api/subscriptions/user/${user.id}/alerts`;
+        }
+      }
+
       const [alertsRes, reportsRes] = await Promise.all([
-        fetch("http://172.16.17.33:5000/api/alerts/"),
+        fetch(alertsUrl),
         fetch("http://172.16.17.33:5000/api/reports/")
       ]);
 
@@ -3031,6 +3042,19 @@ const SettingsScreen = ({ navigation }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [avatarTimestamp, setAvatarTimestamp] = useState(Date.now());
+  
+  // Subscription State
+  const [showSubscriptions, setShowSubscriptions] = useState(false);
+  const [userSubscriptions, setUserSubscriptions] = useState([]);
+  const [subsLoading, setSubsLoading] = useState(false);
+
+  // List of hardcoded barangays for now
+  const BARANGAYS = [
+    "Sitio San Vicente",
+    "Sitio Magtalisay",
+    "Sitio Laray Holy Name",
+    "Sitio Lahing-Lahing (Uno and Dos)"
+  ];
 
   useEffect(() => {
     fetchUserProfile();
@@ -3048,13 +3072,61 @@ const SettingsScreen = ({ navigation }) => {
           setUserData(freshData);
           // Update stored data
           await AsyncStorage.setItem('userData', JSON.stringify(freshData));
-        } else {
-          // Fallback to stored data if offline or error
-          setUserData(prev => ({ ...prev, ...user }));
         }
       }
     } catch (error) {
       console.error("Error fetching profile:", error);
+    }
+  };
+
+  const fetchSubscriptions = async (userId) => {
+    try {
+      setSubsLoading(true);
+      const response = await fetch(`http://172.16.17.33:5000/api/subscriptions/user/${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setUserSubscriptions(data.map(sub => sub.barangay));
+      }
+    } catch (error) {
+      console.error("Error fetching subscriptions:", error);
+    } finally {
+      setSubsLoading(false);
+    }
+  };
+
+  const toggleSubscription = async (barangay, isSubscribed) => {
+    const userId = userData?.id;
+    if (!userId) return;
+
+    // Optimistic UI update
+    if (isSubscribed) {
+      setUserSubscriptions(prev => prev.filter(b => b !== barangay));
+    } else {
+      setUserSubscriptions(prev => [...prev, barangay]);
+    }
+
+    try {
+      if (isSubscribed) {
+        // Unsubscribe
+        const res = await fetch(`http://172.16.17.33:5000/api/subscriptions/user/${userId}/barangay`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ barangay })
+        });
+        if (!res.ok) throw new Error("Unsubscribe failed");
+      } else {
+        // Subscribe
+        const res = await fetch(`http://172.16.17.33:5000/api/subscriptions/user/${userId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ barangay })
+        });
+        if (!res.ok) throw new Error("Subscribe failed");
+      }
+    } catch (error) {
+      console.error("Subscription toggle error:", error);
+      Alert.alert("Error", "Could not update subscription. Please try again.");
+      fetchSubscriptions(userId); // revert on failure
     }
   };
 
@@ -3179,7 +3251,16 @@ const SettingsScreen = ({ navigation }) => {
     <TouchableOpacity
       key={item.id}
       style={styles.settingsItem}
-      onPress={() => item.type !== "toggle" && console.log(`Navigate to ${item.id}`)}
+      onPress={() => {
+        if (item.id === "notifications") {
+          if (userData?.id) {
+            fetchSubscriptions(userData.id);
+          }
+          setShowSubscriptions(true);
+        } else if (item.type !== "toggle") {
+          console.log(`Navigate to ${item.id}`);
+        }
+      }}
       disabled={item.type === "toggle"}
     >
       <Ionicons name={item.icon} size={18} color="#74C5E6" />
@@ -3303,6 +3384,61 @@ const SettingsScreen = ({ navigation }) => {
           selectedImage={selectedImage}
           avatarTimestamp={avatarTimestamp}
         />
+
+        {/* Subscription Modal */}
+        <Modal transparent visible={showSubscriptions} animationType="slide">
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => setShowSubscriptions(false)}>
+              <View style={styles.modalOverlayBackground} />
+            </TouchableWithoutFeedback>
+            <View style={[styles.editProfileCard, { height: '60%' }]}>
+              <View style={styles.editProfileHeader}>
+                <Text style={styles.editProfileTitle}>Alert Subscriptions</Text>
+                <TouchableOpacity onPress={() => setShowSubscriptions(false)}>
+                  <Ionicons name="close" size={24} color={theme.textPrimary} />
+                </TouchableOpacity>
+              </View>
+              
+              <Text style={{color: theme.textSecondary, marginBottom: 15, paddingHorizontal: 5}}>
+                Subscribe to receive instant flood alerts for specific areas.
+              </Text>
+
+              {subsLoading ? (
+                <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 20 }} />
+              ) : (
+                <ScrollView showsVerticalScrollIndicator={false}>
+                  {BARANGAYS.map((barangay) => {
+                    const isSubscribed = userSubscriptions.includes(barangay);
+                    return (
+                      <View key={barangay} style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        backgroundColor: theme.surface,
+                        padding: 16,
+                        borderRadius: 12,
+                        marginBottom: 10,
+                        borderWidth: 1,
+                        borderColor: theme.border
+                      }}>
+                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+                          <Ionicons name="location" size={20} color={isSubscribed ? theme.primary : theme.textSecondary} />
+                          <Text style={{color: theme.textPrimary, fontSize: 16, fontWeight: '500'}}>{barangay}</Text>
+                        </View>
+                        <Switch
+                          value={isSubscribed}
+                          onValueChange={() => toggleSubscription(barangay, isSubscribed)}
+                          trackColor={{ false: "#767577", true: theme.primary }}
+                          thumbColor={Platform.OS === 'ios' ? '#ffffff' : (isSubscribed ? '#ffffff' : '#f4f3f4')}
+                        />
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
 
     </SafeAreaView >

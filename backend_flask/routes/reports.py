@@ -101,5 +101,15 @@ def update_report_status(report_id):
     cursor.execute("UPDATE reports SET status = %s WHERE id = %s", (status, report_id))
     db.commit()
     cursor.close()
+
+    # Trigger auto-escalation logic when a report is verified
+    if status == 'verified':
+        try:
+            from routes.subscriptions import auto_escalate
+            with current_app.test_request_context('/api/subscriptions/auto-escalate', method='POST'):
+                auto_escalate()
+        except Exception as e:
+            # Non-critical — log but don't fail the report status update
+            current_app.logger.warning(f"Auto-escalation check failed: {e}")
     
     return jsonify({"message": "Report status updated"}), 200
