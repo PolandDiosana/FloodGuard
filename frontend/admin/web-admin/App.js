@@ -18,9 +18,6 @@ import DataReportsPage from "./src/screens/DataReportsPage";
 import UserManagementPage from "./src/screens/UserManagementPage";
 import EvacuationManagementPage from "./src/screens/EvacuationManagementPage";
 import ThresholdConfigPage from "./src/screens/ThresholdConfigPage";
-import AboutPage from "./src/screens/AboutPage";
-import FeaturesPage from "./src/screens/FeaturesPage";
-import ContactPage from "./src/screens/ContactPage";
 import LoadingOverlay from "./src/components/LoadingOverlay";
 
 export default function App() {
@@ -111,15 +108,6 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    if (publicPage === "about") {
-      return <AboutPage onNavigatePublic={setPublicPage} onLoginClick={() => { setPublicPage("home"); setOpenLogin(true); }} />;
-    }
-    if (publicPage === "features") {
-      return <FeaturesPage onNavigatePublic={setPublicPage} onLoginClick={() => { setPublicPage("home"); setOpenLogin(true); }} />;
-    }
-    if (publicPage === "contact") {
-      return <ContactPage onNavigatePublic={setPublicPage} onLoginClick={() => { setPublicPage("home"); setOpenLogin(true); }} />;
-    }
     return <LandingPage
       onLoginSuccess={handleLoginSuccess}
       onNavigatePublic={setPublicPage}

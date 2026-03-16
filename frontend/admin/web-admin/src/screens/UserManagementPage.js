@@ -11,6 +11,8 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
     const [searchQuery, setSearchQuery] = useState("");
     const [roleFilter, setRoleFilter] = useState("All Roles");
     const [statusFilter, setStatusFilter] = useState("All Status");
+    const [showRoleDropdown, setShowRoleDropdown] = useState(false);
+    const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
     const [users, setUsers] = useState([]);
     const [stats, setStats] = useState({
@@ -288,14 +290,68 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                         </View>
 
                         <View style={styles.filterGroup}>
-                            <TouchableOpacity style={styles.filterSelect}>
-                                <Text style={styles.filterSelectText}>{roleFilter}</Text>
-                                <Feather name="chevron-down" size={16} color="#475569" />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.filterSelect}>
-                                <Text style={styles.filterSelectText}>{statusFilter}</Text>
-                                <Feather name="chevron-down" size={16} color="#475569" />
-                            </TouchableOpacity>
+                            {/* Role Filter */}
+                            <View style={{ zIndex: 100 }}>
+                                <TouchableOpacity 
+                                    style={styles.filterSelect} 
+                                    onPress={() => {
+                                        setShowRoleDropdown(!showRoleDropdown);
+                                        setShowStatusDropdown(false);
+                                    }}
+                                >
+                                    <Text style={styles.filterSelectText}>{roleFilter}</Text>
+                                    <Feather name={showRoleDropdown ? "chevron-up" : "chevron-down"} size={16} color="#475569" />
+                                </TouchableOpacity>
+                                
+                                {showRoleDropdown && (
+                                    <View style={styles.ccFilterDropdown}>
+                                        {["All Roles", "Super Admin", "LGU Moderator", "User"].map((role) => (
+                                            <TouchableOpacity 
+                                                key={role} 
+                                                style={styles.ccFilterItem}
+                                                onPress={() => {
+                                                    setRoleFilter(role);
+                                                    setShowRoleDropdown(false);
+                                                }}
+                                            >
+                                                <Text style={[styles.ccFilterItemText, roleFilter === role && { fontWeight: '700', color: '#2563eb' }]}>{role}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+
+                            {/* Status Filter */}
+                            <View style={{ zIndex: 100 }}>
+                                <TouchableOpacity 
+                                    style={styles.filterSelect}
+                                    onPress={() => {
+                                        setShowStatusDropdown(!showStatusDropdown);
+                                        setShowRoleDropdown(false);
+                                    }}
+                                >
+                                    <Text style={styles.filterSelectText}>{statusFilter}</Text>
+                                    <Feather name={showStatusDropdown ? "chevron-up" : "chevron-down"} size={16} color="#475569" />
+                                </TouchableOpacity>
+
+                                {showStatusDropdown && (
+                                    <View style={styles.ccFilterDropdown}>
+                                        {["All Status", "Active", "Inactive"].map((status) => (
+                                            <TouchableOpacity 
+                                                key={status} 
+                                                style={styles.ccFilterItem}
+                                                onPress={() => {
+                                                    setStatusFilter(status);
+                                                    setShowStatusDropdown(false);
+                                                }}
+                                            >
+                                                <Text style={[styles.ccFilterItemText, statusFilter === status && { fontWeight: '700', color: '#2563eb' }]}>{status}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                )}
+                            </View>
+
                             <TouchableOpacity style={styles.addUserButton} onPress={handleAddUserClick}>
                                 <Feather name="plus" size={18} color="#ffffff" />
                                 <Text style={styles.addUserButtonText}>Add LGU</Text>

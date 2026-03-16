@@ -1,0 +1,107 @@
+{
+    "admins": [
+        {
+            "id": 1,
+            "username": "admin@system.com",
+            "role": "super_admin"
+        }
+    ],
+    "users": [
+        {
+            "id": 1,
+            "full_name": "Poland",
+            "email": "diosana@gmail.com",
+            "role": "user"
+        },
+        {
+            "id": 2,
+            "full_name": "Jhade",
+            "email": "jhade@gmail.com",
+            "role": "user"
+        },
+        {
+            "id": 4,
+            "full_name": "LGU Moderator",
+            "email": "moderator@lgu.gov",
+            "role": "lgu_admin"
+        },
+        {
+            "id": 5,
+            "full_name": "Jhade Sebios",
+            "email": "jhadesebios@gmail.com",
+            "role": "lgu_admin"
+        },
+        {
+            "id": 19,
+            "full_name": "Jovan Gocela",
+            "email": "jovangocela75@gmail.com",
+            "role": "lgu_admin"
+        },
+        {
+            "id": 24,
+            "full_name": "Test User 2",
+            "email": "floodguardnotifications@gmail.com",
+            "role": "user"
+        },
+        {
+            "id": 25,
+            "full_name": "Test User 4",
+            "email": "floodguardnotifications+test4@gmail.com",
+            "role": "user"
+        },
+        {
+            "id": 26,
+            "full_name": "Test LGU Admin",
+            "email": "floodguardnotifications+lgu@gmail.com",
+            "role": "lgu_admin"
+        },
+        {
+            "id": 29,
+            "full_name": "Test LGU 5",
+            "email": "floodguardnotifications+lgu5@gmail.com",
+            "role": "lgu_admin"
+        },
+        {
+            "id": 37,
+            "full_name": "kisses Yabut",
+            "email": "irishgonzaga421@gmail.com",
+            "role": "lgu_admin"
+        },
+        {
+            "id": 39,
+            "full_name": "Test User",
+            "email": "testuser@example.com",
+            "role": "user"
+        },
+        {
+            "id": 41,
+            "full_name": "Alvie Villanueva",
+            "email": "alvi.081401@gmail.com",
+            "role": "lgu_admin"
+        },
+        {
+            "id": 42,
+            "full_name": "Joseph Yabut",
+            "email": "yabutjosepharnel@gmail.com",
+            "role": "lgu_admin"
+        },
+        {
+            "id": 44,
+            "full_name": "Jerson Sullano",
+            "email": "landpo321@gmail.com",
+            "role": "user"
+        },
+        {
+            "id": 45,
+            "full_name": "Juan",
+            "email": "juan@example.com",
+            "role": "user"
+        },
+        {
+            "id": 46,
+            "full_name": "Bryl Darel Gorgonio",
+            "email": "brylgorgonio@gmail.com",
+            "role": "user"
+        }
+    ]
+}
