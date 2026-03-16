@@ -322,15 +322,15 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
     const renderTabs = () => (
         <View style={styles.ccTabContainer}>
-            <TouchableOpacity 
+            <TouchableOpacity
                 style={[styles.ccTab, activeTab === "operations" && styles.ccTabActive]}
                 onPress={() => setActiveTab("operations")}
             >
                 <Feather name="activity" size={18} color={activeTab === "operations" ? "#0f172a" : "#64748b"} />
                 <Text style={[styles.ccTabText, activeTab === "operations" && styles.ccTabTextActive]}>Operations</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
                 style={[styles.ccTab, activeTab === "broadcast" && styles.ccTabActive]}
                 onPress={() => setActiveTab("broadcast")}
             >
@@ -339,7 +339,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
             </TouchableOpacity>
 
             {userRole === "super_admin" && (
-                <TouchableOpacity 
+                <TouchableOpacity
                     style={[styles.ccTab, activeTab === "audit" && styles.ccTabActive]}
                     onPress={() => setActiveTab("audit")}
                 >
@@ -378,12 +378,12 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                             <Text style={{ color: '#64748b', marginTop: 16, fontSize: 14 }}>All clear. No active threats detected.</Text>
                         </View>
                     ) : (
-                        <ScrollView style={{ maxHeight: 500 }} showsVerticalScrollIndicator={false}>
+                        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                             {activeAlerts.map(a => {
                                 const levelMap = {
                                     advisory: { label: 'ADVISORY', color: '#3b82f6', bg: '#eff6ff', progress: 0.25 },
-                                    watch:    { label: 'WATCH', color: '#f59e0b', bg: '#fffbeb', progress: 0.5 },
-                                    warning:  { label: 'WARNING', color: '#ef4444', bg: '#fef2f2', progress: 0.75 },
+                                    watch: { label: 'WATCH', color: '#f59e0b', bg: '#fffbeb', progress: 0.5 },
+                                    warning: { label: 'WARNING', color: '#ef4444', bg: '#fef2f2', progress: 0.75 },
                                     critical: { label: 'CRITICAL', color: '#7f1d1d', bg: '#fee2e2', progress: 1.0 },
                                 };
                                 const meta = levelMap[a.level] || levelMap.advisory;
@@ -395,7 +395,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                             </View>
                                             <Text style={{ fontSize: 12, color: '#94a3b8' }}>{new Date(a.timestamp).toLocaleTimeString()}</Text>
                                         </View>
-                                        
+
                                         <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a' }}>{a.title}</Text>
                                         <Text style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Area: {a.barangay}</Text>
 
@@ -404,7 +404,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                         </View>
 
                                         <View style={styles.ccAlertActionRow}>
-                                            <TouchableOpacity 
+                                            <TouchableOpacity
                                                 style={[styles.ccActionButton, { backgroundColor: '#f1f5f9' }]}
                                                 onPress={() => handleResolveAlert(a.id)}
                                             >
@@ -413,7 +413,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                             </TouchableOpacity>
 
                                             {a.level !== 'critical' && (
-                                                <TouchableOpacity 
+                                                <TouchableOpacity
                                                     style={[styles.ccActionButton, { backgroundColor: '#fee2e2' }]}
                                                     onPress={() => handleEscalate(a.id)}
                                                 >
@@ -449,7 +449,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                             <Text style={{ color: '#94a3b8', marginTop: 12, fontSize: 13 }}>No reports to verify</Text>
                         </View>
                     ) : (
-                        <ScrollView style={{ maxHeight: 600 }} showsVerticalScrollIndicator={false}>
+                        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                             {verifications.map((item) => (
                                 <View key={item.id} style={{ padding: 16, backgroundColor: '#f8fafc', borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0' }}>
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -458,16 +458,16 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                     </View>
                                     <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>{item.location}</Text>
                                     <Text style={{ fontSize: 13, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>"{item.description}"</Text>
-                                    
+
                                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, backgroundColor: '#dcfce7', borderRadius: 8 }}
                                             onPress={() => handleVerify(item.id)}
                                         >
                                             <Feather name="check" size={14} color="#166534" />
                                             <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>Verify</Text>
                                         </TouchableOpacity>
-                                        <TouchableOpacity 
+                                        <TouchableOpacity
                                             style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, backgroundColor: '#fee2e2', borderRadius: 8 }}
                                             onPress={() => handleReject(item.id)}
                                         >
@@ -487,17 +487,17 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const renderBroadcastStudio = () => (
         <View style={styles.ccBroadcastGrid}>
             <View style={styles.ccFormSection}>
-                <View style={styles.ccPanel}>
+                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0 }]}>
                     <Text style={[styles.ccPanelTitle, { marginBottom: 20 }]}>Broadcast Alert Studio</Text>
-                    
+
                     <View style={{ marginBottom: 20 }}>
                         <Text style={styles.alertInputLabel}>Priority Level</Text>
                         <View style={styles.ccBrgyGrid}>
                             {['advisory', 'watch', 'warning'].map(level => (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     key={level}
                                     style={[
-                                        styles.ccBrgyChip, 
+                                        styles.ccBrgyChip,
                                         alertType === level && { borderColor: level === 'advisory' ? '#3b82f6' : level === 'watch' ? '#f59e0b' : '#ef4444', backgroundColor: level === 'advisory' ? '#eff6ff' : level === 'watch' ? '#fffbeb' : '#fef2f2' }
                                     ]}
                                     onPress={() => setAlertType(level)}
@@ -536,7 +536,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                         <Text style={styles.alertInputLabel}>Target Coverage</Text>
                         <View style={styles.ccBrgyGrid}>
                             {barangays.map(b => (
-                                <TouchableOpacity 
+                                <TouchableOpacity
                                     key={b}
                                     style={[styles.ccBrgyChip, selectedBarangays.includes(b) && styles.ccBrgyChipActive]}
                                     onPress={() => toggleBarangay(b)}
@@ -548,7 +548,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                         </View>
                     </View>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={[styles.primaryBtn, { backgroundColor: '#0f172a', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }]}
                         onPress={handleBroadcast}
                         disabled={loading}
@@ -564,11 +564,11 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
             </View>
 
             <View style={styles.ccHistorySection}>
-                <View style={styles.ccPanel}>
+                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0 }]}>
                     <Text style={styles.ccPanelTitle}>Operational History</Text>
                     <Text style={styles.ccPanelSubtitle}>Review past broadcasts</Text>
-                    
-                    <ScrollView style={{ marginTop: 20, maxHeight: 700 }} showsVerticalScrollIndicator={false}>
+
+                    <ScrollView style={{ marginTop: 20, flex: 1 }} showsVerticalScrollIndicator={false}>
                         {alertHistory.map(item => (
                             <View key={item.id} style={{ paddingBottom: 16, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
@@ -599,8 +599,8 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                     <Text style={styles.ccActionButtonText}>Export CSV</Text>
                 </TouchableOpacity>
             </View>
-            
-            <View style={{ marginTop: 20 }}>
+
+            <ScrollView style={{ flex: 1, marginTop: 20 }} showsVerticalScrollIndicator={false}>
                 <View style={{ flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: '#f1f5f9', backgroundColor: '#f8fafc', paddingHorizontal: 12 }}>
                     <Text style={{ flex: 1, fontWeight: '700', color: '#64748b', fontSize: 12 }}>EVENT</Text>
                     <Text style={{ flex: 1, fontWeight: '700', color: '#64748b', fontSize: 12 }}>TRANSITION</Text>
@@ -612,7 +612,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                     <Feather name="lock" size={48} color="#cbd5e1" />
                     <Text style={{ color: '#94a3b8', marginTop: 16 }}>Advanced auditing data available in production</Text>
                 </View>
-            </View>
+            </ScrollView>
         </View>
     );
 
@@ -624,7 +624,6 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                 <View style={styles.ccHeader}>
                     <View>
                         <Text style={styles.dashboardTopTitle}>Command Center</Text>
-                        <Text style={styles.dashboardTopSubtitle}>Redesign 2.0 • Tactical Flood Monitoring</Text>
                     </View>
                     <View style={styles.dashboardTopRight}>
                         <View style={styles.dashboardStatusPill}>
@@ -637,11 +636,11 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
                 {renderTabs()}
 
-                <ScrollView showsVerticalScrollIndicator={false}>
+                <View style={{ flex: 1 }}>
                     {activeTab === "operations" && renderOperations()}
                     {activeTab === "broadcast" && renderBroadcastStudio()}
                     {activeTab === "audit" && renderAuditLog()}
-                </ScrollView>
+                </View>
             </View>
 
             {/* Image Modal */}

@@ -2812,6 +2812,7 @@ export const styles = StyleSheet.create({
     ccOpsGrid: {
         flexDirection: 'row',
         gap: 20,
+        height: 700,
     },
     ccOpsLeft: {
         flex: 1.5,
@@ -2910,6 +2911,7 @@ export const styles = StyleSheet.create({
     ccBroadcastGrid: {
         flexDirection: 'row',
         gap: 24,
+        height: 700,
     },
     ccFormSection: {
         flex: 1,
