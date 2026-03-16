@@ -243,13 +243,17 @@ const LandingPage = ({ onLoginSuccess, onNavigatePublic, initialLoginOpen, reset
         try {
             console.log("Attempting login with:", email);
             const delayPromise = new Promise(resolve => setTimeout(resolve, 1500));
+            const payload = { username: email.trim().toLowerCase(), password: password };
+            console.log('DEBUG login payload', payload);
             const loginPromise = fetch(`${API_BASE_URL}/api/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: email, password: password }),
+                body: JSON.stringify(payload),
             });
             const [_, response] = await Promise.all([delayPromise, loginPromise]);
-            const data = await response.json();
+            const text = await response.text();
+            let data = {};
+            try { data = JSON.parse(text); } catch (e) { data = { error: text } }
 
             if (response.ok) {
                 if (Platform.OS === "web") {
@@ -263,22 +267,13 @@ const LandingPage = ({ onLoginSuccess, onNavigatePublic, initialLoginOpen, reset
                 if (data.user.role === "super_admin") appRole = "admin";
                 else if (data.user.role === "lgu_admin") appRole = "lgu";
 
-                if (appRole !== accessLevel) {
-                    const roleName = accessLevel === 'admin' ? 'Super Admin' : 'LGU Moderator';
-                    setError(`Access denied. This account is not a ${roleName}.`);
-                    if (Platform.OS === "web") {
-                        localStorage.removeItem("authToken");
-                        localStorage.removeItem("userRole");
-                    }
-                    return;
-                }
-
                 if (onLoginSuccess) {
                     setShowLoginModal(false);
                     onLoginSuccess(appRole);
                 }
             } else {
-                setError(data.error || "Login failed");
+                const errMsg = data.error || data.message || `Login failed (${response.status})`;
+                setError(errMsg);
             }
         } catch (err) {
             console.error("Login error:", err);
