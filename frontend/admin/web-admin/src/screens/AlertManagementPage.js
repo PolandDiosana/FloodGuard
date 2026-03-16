@@ -359,7 +359,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
         <View style={styles.ccOpsGrid}>
             {/* Mission Control: Active Alerts */}
             <View style={styles.ccOpsLeft}>
-                <View style={styles.ccPanel}>
+                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0 }]}>
                     <View style={styles.ccPanelHeader}>
                         <View>
                             <Text style={styles.ccPanelTitle}>Mission Control</Text>
@@ -432,7 +432,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
             {/* Pending Verifications */}
             <View style={styles.ccOpsRight}>
-                <View style={[styles.ccPanel, { borderLeftWidth: 4, borderLeftColor: '#3b82f6' }]}>
+                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0, borderLeftWidth: 4, borderLeftColor: '#3b82f6' }]}>
                     <View style={styles.ccPanelHeader}>
                         <View>
                             <Text style={styles.ccPanelTitle}>Citizen Reports</Text>
@@ -588,7 +588,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     );
 
     const renderAuditLog = () => (
-        <View style={styles.ccPanel}>
+        <View style={[styles.ccPanel, { flex: 1 }]}>
             <View style={styles.ccPanelHeader}>
                 <View>
                     <Text style={styles.ccPanelTitle}>System Audit Log</Text>
