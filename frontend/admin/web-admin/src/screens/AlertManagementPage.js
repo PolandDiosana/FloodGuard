@@ -318,533 +318,330 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
         "Sitio Lahing-Lahing (Uno and Dos)",
     ];
 
-    return (
-        <View style={styles.dashboardRoot}>
-            <AdminSidebar activePage="alert-management" onNavigate={onNavigate} onLogout={onLogout} variant={userRole} />
+    const [activeTab, setActiveTab] = useState("operations");
 
-            <View style={styles.dashboardMain}>
-                <View style={styles.dashboardTopBar}>
-                    <View>
-                        <Text style={styles.dashboardTopTitle}>Alert Management</Text>
-                        <Text style={styles.dashboardTopSubtitle}>
-                            Broadcast alerts and verify reports
-                        </Text>
-                    </View>
-                    <View style={styles.dashboardTopRight}>
-                        <View style={styles.dashboardStatusPill}>
-                            <View style={styles.dashboardStatusDot} />
-                            <Text style={styles.dashboardStatusText}>System Online</Text>
-                        </View>
-                        <RealTimeClock style={styles.dashboardTopDate} />
-                    </View>
-                </View>
+    const renderTabs = () => (
+        <View style={styles.ccTabContainer}>
+            <TouchableOpacity 
+                style={[styles.ccTab, activeTab === "operations" && styles.ccTabActive]}
+                onPress={() => setActiveTab("operations")}
+            >
+                <Feather name="activity" size={18} color={activeTab === "operations" ? "#0f172a" : "#64748b"} />
+                <Text style={[styles.ccTabText, activeTab === "operations" && styles.ccTabTextActive]}>Operations</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+                style={[styles.ccTab, activeTab === "broadcast" && styles.ccTabActive]}
+                onPress={() => setActiveTab("broadcast")}
+            >
+                <Feather name="send" size={18} color={activeTab === "broadcast" ? "#0f172a" : "#64748b"} />
+                <Text style={[styles.ccTabText, activeTab === "broadcast" && styles.ccTabTextActive]}>Broadcast Studio</Text>
+            </TouchableOpacity>
 
-                {/* ─── ESCALATION CONTROL PANEL ─── */}
-                <View style={{
-                    backgroundColor: '#fff',
-                    borderRadius: 16,
-                    borderWidth: 1,
-                    borderColor: '#e2e8f0',
-                    padding: 20,
-                    marginBottom: 20,
-                    shadowColor: '#000',
-                    shadowOpacity: 0.06,
-                    shadowRadius: 8,
-                    shadowOffset: { width: 0, height: 2 },
-                }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16, gap: 12 }}>
-                        <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#fef3c7', alignItems: 'center', justifyContent: 'center' }}>
-                            <Feather name="alert-triangle" size={20} color="#b45309" />
+            {userRole === "super_admin" && (
+                <TouchableOpacity 
+                    style={[styles.ccTab, activeTab === "audit" && styles.ccTabActive]}
+                    onPress={() => setActiveTab("audit")}
+                >
+                    <Feather name="clipboard" size={18} color={activeTab === "audit" ? "#0f172a" : "#64748b"} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={[styles.ccTabText, activeTab === "audit" && styles.ccTabTextActive]}>Audit Log</Text>
+                        <View style={styles.ccAuditBadge}>
+                            <Text style={styles.ccAuditBadgeText}>PRO</Text>
                         </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a' }}>Emergency Escalation Control</Text>
-                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Manually escalate or resolve active alerts</Text>
+                    </View>
+                </TouchableOpacity>
+            )}
+        </View>
+    );
+
+    const renderOperations = () => (
+        <View style={styles.ccOpsGrid}>
+            {/* Mission Control: Active Alerts */}
+            <View style={styles.ccOpsLeft}>
+                <View style={styles.ccPanel}>
+                    <View style={styles.ccPanelHeader}>
+                        <View>
+                            <Text style={styles.ccPanelTitle}>Mission Control</Text>
+                            <Text style={styles.ccPanelSubtitle}>Active emergency escalations</Text>
                         </View>
                         <View style={{ backgroundColor: '#fee2e2', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 20 }}>
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#b91c1c' }}>{activeAlerts.length} ACTIVE</Text>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: '#b91c1c' }}>{activeAlerts.length} LIVE</Text>
                         </View>
                     </View>
 
                     {loadingActiveAlerts ? (
-                        <ActivityIndicator size="small" color="#b45309" />
+                        <ActivityIndicator size="small" color="#0f172a" />
                     ) : activeAlerts.length === 0 ? (
-                        <View style={{ alignItems: 'center', paddingVertical: 20 }}>
-                            <Feather name="check-circle" size={36} color="#16a34a" />
-                            <Text style={{ color: '#64748b', marginTop: 8, fontSize: 13 }}>No active alerts — all clear</Text>
+                        <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+                            <Feather name="shield" size={48} color="#16a34a" />
+                            <Text style={{ color: '#64748b', marginTop: 16, fontSize: 14 }}>All clear. No active threats detected.</Text>
                         </View>
                     ) : (
-                        <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
+                        <ScrollView style={{ maxHeight: 500 }} showsVerticalScrollIndicator={false}>
                             {activeAlerts.map(a => {
-                                const levelColors = {
-                                    advisory: { bg: '#dbeafe', text: '#1d4ed8' },
-                                    watch:    { bg: '#fef3c7', text: '#b45309' },
-                                    warning:  { bg: '#fee2e2', text: '#991b1b' },
-                                    critical: { bg: '#7f1d1d', text: '#fff' },
+                                const levelMap = {
+                                    advisory: { label: 'ADVISORY', color: '#3b82f6', bg: '#eff6ff', progress: 0.25 },
+                                    watch:    { label: 'WATCH', color: '#f59e0b', bg: '#fffbeb', progress: 0.5 },
+                                    warning:  { label: 'WARNING', color: '#ef4444', bg: '#fef2f2', progress: 0.75 },
+                                    critical: { label: 'CRITICAL', color: '#7f1d1d', bg: '#fee2e2', progress: 1.0 },
                                 };
-                                const lc = levelColors[a.level] || { bg: '#f1f5f9', text: '#64748b' };
-                                const isMaxLevel = a.level === 'critical';
+                                const meta = levelMap[a.level] || levelMap.advisory;
                                 return (
-                                    <View key={a.id} style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        paddingVertical: 10,
-                                        paddingHorizontal: 14,
-                                        backgroundColor: '#f8fafc',
-                                        borderRadius: 10,
-                                        marginBottom: 8,
-                                        borderWidth: 1,
-                                        borderColor: '#e2e8f0',
-                                        gap: 10,
-                                    }}>
-                                        <View style={{ backgroundColor: lc.bg, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 20 }}>
-                                            <Text style={{ fontSize: 10, fontWeight: '800', color: lc.text }}>{(a.level || '').toUpperCase()}</Text>
+                                    <View key={a.id} style={styles.ccAlertCard}>
+                                        <View style={styles.ccAlertCardHeader}>
+                                            <View style={[styles.ccAlertLevelBadge, { backgroundColor: meta.bg }]}>
+                                                <Text style={[styles.ccAlertLevelText, { color: meta.color }]}>{meta.label}</Text>
+                                            </View>
+                                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>{new Date(a.timestamp).toLocaleTimeString()}</Text>
                                         </View>
-                                        <Text style={{ flex: 1, fontSize: 13, fontWeight: '600', color: '#1e293b' }} numberOfLines={1}>{a.title}</Text>
-                                        <Text style={{ fontSize: 11, color: '#94a3b8' }}>{a.barangay}</Text>
-                                        <TouchableOpacity
-                                            onPress={() => handleEscalate(a.id)}
-                                            disabled={isMaxLevel || escalatingId === a.id}
-                                            style={[
-                                                { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
-                                                isMaxLevel
-                                                    ? { backgroundColor: '#f1f5f9', opacity: 0.5 }
-                                                    : { backgroundColor: '#fef3c7' }
-                                            ]}
-                                        >
-                                            {escalatingId === a.id
-                                                ? <ActivityIndicator size="small" color="#b45309" />
-                                                : <><Feather name="chevrons-up" size={14} color={isMaxLevel ? '#94a3b8' : '#b45309'} />
-                                                  <Text style={{ fontSize: 12, fontWeight: '700', color: isMaxLevel ? '#94a3b8' : '#b45309' }}>Escalate</Text></>
-                                            }
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            onPress={() => handleResolveAlert(a.id)}
-                                            disabled={resolvingId === a.id}
-                                            style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: 8, backgroundColor: '#dcfce7', flexDirection: 'row', alignItems: 'center', gap: 4 }}
-                                        >
-                                            {resolvingId === a.id
-                                                ? <ActivityIndicator size="small" color="#166534" />
-                                                : <><Feather name="check" size={14} color="#166534" />
-                                                  <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>Resolve</Text></>
-                                            }
-                                        </TouchableOpacity>
+                                        
+                                        <Text style={{ fontSize: 16, fontWeight: '700', color: '#0f172a' }}>{a.title}</Text>
+                                        <Text style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Area: {a.barangay}</Text>
+
+                                        <View style={styles.ccAlertProgressContainer}>
+                                            <View style={[styles.ccAlertProgressBar, { width: `${meta.progress * 100}%`, backgroundColor: meta.color }]} />
+                                        </View>
+
+                                        <View style={styles.ccAlertActionRow}>
+                                            <TouchableOpacity 
+                                                style={[styles.ccActionButton, { backgroundColor: '#f1f5f9' }]}
+                                                onPress={() => handleResolveAlert(a.id)}
+                                            >
+                                                <Feather name="check-circle" size={16} color="#64748b" />
+                                                <Text style={[styles.ccActionButtonText, { color: '#64748b' }]}>Resolve</Text>
+                                            </TouchableOpacity>
+
+                                            {a.level !== 'critical' && (
+                                                <TouchableOpacity 
+                                                    style={[styles.ccActionButton, { backgroundColor: '#fee2e2' }]}
+                                                    onPress={() => handleEscalate(a.id)}
+                                                >
+                                                    <Feather name="trending-up" size={16} color="#ef4444" />
+                                                    <Text style={[styles.ccActionButtonText, { color: '#ef4444' }]}>Escalate</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                        </View>
                                     </View>
                                 );
                             })}
                         </ScrollView>
                     )}
                 </View>
+            </View>
 
-                <View style={styles.alertManagementContainer}>
-                    {/* Left Panel: Broadcast Alert with Flip */}
-                    <View style={styles.alertBroadcastPanelContainer}>
-                        {/* Front Side */}
-                        <Animated.View
-                            style={[
-                                styles.alertBroadcastPanel,
-                                {
-                                    transform: [{ rotateY: broadcastFrontRotate }],
-                                    opacity: broadcastFrontOpacity,
-                                    backfaceVisibility: 'hidden',
-                                    zIndex: isBroadcastFlipped ? 0 : 1
-                                }
-                            ]}
-                            pointerEvents={isBroadcastFlipped ? 'none' : 'auto'}
-                        >
-                            <View style={styles.alertPanelHeader}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Feather name="radio" size={20} color="#0f172a" />
-                                    </View>
-                                    <Text style={styles.alertPanelTitle}>Broadcast Emergency Alert</Text>
-                                </View>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.flipToggleButton,
-                                        hoverBroadcastFront && styles.flipToggleButtonHover
-                                    ]}
-                                    onPress={flipBroadcastCard}
-                                    onMouseEnter={() => setHoverBroadcastFront(true)}
-                                    onMouseLeave={() => setHoverBroadcastFront(false)}
-                                >
-                                    <Feather
-                                        name="clock"
-                                        size={16}
-                                        color={hoverBroadcastFront ? '#001D39' : '#0A4174'}
-                                        style={{ marginRight: 6 }}
-                                    />
-                                    <Text style={[
-                                        styles.flipToggleButtonText,
-                                        hoverBroadcastFront && styles.flipToggleButtonTextHover
-                                    ]}>Alert History</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <ScrollView style={styles.broadcastForm} showsVerticalScrollIndicator={false}>
-                                {/* ... existing form content ... */}
-                                <View style={styles.alertInputGroup}>
-                                    <Text style={styles.alertInputLabel}>Alert Level</Text>
-                                    <View style={styles.alertTypeButtons}>
-                                        <TouchableOpacity
-                                            style={[styles.alertTypeButton, alertType === "advisory" && styles.alertTypeButtonActive, { borderColor: alertType === "advisory" ? '#3b82f6' : '#e2e8f0' }]}
-                                            onPress={() => setAlertType("advisory")}
-                                        >
-                                            <Text style={[styles.alertTypeButtonText, alertType === "advisory" && { color: '#3b82f6', fontWeight: '700' }]}>Advisory</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[styles.alertTypeButton, alertType === "watch" && styles.alertTypeButtonActive, { borderColor: alertType === "watch" ? '#f59e0b' : '#e2e8f0' }]}
-                                            onPress={() => setAlertType("watch")}
-                                        >
-                                            <Text style={[styles.alertTypeButtonText, alertType === "watch" && { color: '#f59e0b', fontWeight: '700' }]}>Watch</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={[styles.alertTypeButton, alertType === "warning" && styles.alertTypeButtonActive, { borderColor: alertType === "warning" ? '#ef4444' : '#e2e8f0' }]}
-                                            onPress={() => setAlertType("warning")}
-                                        >
-                                            <Text style={[styles.alertTypeButtonText, alertType === "warning" && { color: '#ef4444', fontWeight: '700' }]}>Warning</Text>
-                                        </TouchableOpacity>
-                                    </View>
-                                </View>
-
-                                <View style={styles.alertInputGroup}>
-                                    <Text style={styles.alertInputLabel}>Alert Title</Text>
-                                    <TextInput
-                                        style={styles.modalInput}
-                                        placeholder="e.g. Heavy Rainfall Warning"
-                                        value={alertTitle}
-                                        onChangeText={setAlertTitle}
-                                    />
-                                </View>
-
-                                <View style={styles.alertInputGroup}>
-                                    <Text style={styles.alertInputLabel}>Message</Text>
-                                    <TextInput
-                                        style={styles.alertMessageInput}
-                                        placeholder="Enter detailed alert message..."
-                                        multiline
-                                        numberOfLines={4}
-                                        value={alertMessage}
-                                        onChangeText={setAlertMessage}
-                                    />
-                                </View>
-
-                                <View style={styles.alertInputGroup}>
-                                    <Text style={styles.alertInputLabel}>Target Barangays</Text>
-                                    <View style={styles.barangayCheckboxList}>
-                                        {barangays.map((b) => (
-                                            <TouchableOpacity
-                                                key={b}
-                                                style={styles.barangayCheckboxItem}
-                                                onPress={() => toggleBarangay(b)}
-                                            >
-                                                <View style={[styles.checkbox, selectedBarangays.includes(b) && styles.checkboxChecked, {
-                                                    borderColor: selectedBarangays.includes(b) ? '#16a34a' : '#cbd5e1',
-                                                    backgroundColor: selectedBarangays.includes(b) ? '#16a34a' : 'transparent'
-                                                }]}>
-                                                    {selectedBarangays.includes(b) && <Feather name="check" size={14} color="#fff" />}
-                                                </View>
-                                                <Text style={styles.barangayCheckboxLabel}>{b}</Text>
-                                            </TouchableOpacity>
-                                        ))}
-                                    </View>
-                                </View>
-
-                                {allReports.filter(r => r.status === 'verified').length > 0 && (
-                                    <View style={styles.alertInputGroup}>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                                            <Text style={[styles.alertInputLabel, { marginBottom: 0 }]}>Recent Verified Reports</Text>
-                                            <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 12 }}>
-                                                <Text style={{ fontSize: 10, fontWeight: '800', color: '#166534' }}>VERIFIED</Text>
-                                            </View>
-                                        </View>
-                                        <View style={styles.reportsPreviewList}>
-                                            {allReports
-                                                .filter(r => r.status === 'verified')
-                                                .slice(0, 3)
-                                                .map((report) => (
-                                                    <View key={report.id} style={styles.reportPreviewItem}>
-                                                        <View style={styles.reportPreviewDot} />
-                                                        <View style={{ flex: 1 }}>
-                                                            <Text style={styles.reportPreviewText} numberOfLines={1}>
-                                                                {report.description}
-                                                            </Text>
-                                                            <Text style={styles.reportPreviewLocation}>
-                                                                {report.location} • {new Date(report.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            </Text>
-                                                        </View>
-                                                    </View>
-                                                ))}
-                                        </View>
-                                    </View>
-                                )}
-
-                                <TouchableOpacity
-                                    style={[styles.broadcastButton, { backgroundColor: '#B0DB9C' }, loading && styles.broadcastButtonDisabled]}
-                                    onPress={handleBroadcast}
-                                    disabled={loading}
-                                >
-                                    {loading ? (
-                                        <ActivityIndicator size="small" color="#1a3d0a" />
-                                    ) : (
-                                        <>
-                                            <Feather name="send" size={20} color="#1a3d0a" style={{ marginRight: 8 }} />
-                                            <Text style={styles.broadcastButtonText}>Broadcast Alert</Text>
-                                        </>
-                                    )}
-                                </TouchableOpacity>
-                            </ScrollView>
-                        </Animated.View>
-
-                        {/* Back Side (Alert History) */}
-                        <Animated.View
-                            style={[
-                                styles.alertBroadcastPanel,
-                                styles.alertPanelBack,
-                                {
-                                    transform: [{ rotateY: broadcastBackRotate }],
-                                    opacity: broadcastBackOpacity,
-                                    backfaceVisibility: 'hidden',
-                                    zIndex: isBroadcastFlipped ? 1 : 0
-                                }
-                            ]}
-                            pointerEvents={isBroadcastFlipped ? 'auto' : 'none'}
-                        >
-                            <View style={styles.alertPanelHeader}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Feather name="archive" size={20} color="#0f172a" />
-                                    </View>
-                                    <Text style={styles.alertPanelTitle}>Alert History</Text>
-                                </View>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.flipToggleButton,
-                                        hoverBroadcastBack && styles.flipToggleButtonHover
-                                    ]}
-                                    onPress={flipBroadcastCard}
-                                    onMouseEnter={() => setHoverBroadcastBack(true)}
-                                    onMouseLeave={() => setHoverBroadcastBack(false)}
-                                >
-                                    <Feather
-                                        name="arrow-left"
-                                        size={16}
-                                        color={hoverBroadcastBack ? '#001D39' : '#0A4174'}
-                                        style={{ marginRight: 6 }}
-                                    />
-                                    <Text style={[
-                                        styles.flipToggleButtonText,
-                                        hoverBroadcastBack && styles.flipToggleButtonTextHover
-                                    ]}>Back to Form</Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            <ScrollView style={styles.verificationsScroll} contentContainerStyle={styles.verificationsScrollContent} showsVerticalScrollIndicator={false}>
-                                {loadingAlertHistory ? (
-                                    <ActivityIndicator size="large" color="#1d6ee5" style={{ marginTop: 20 }} />
-                                ) : alertHistory.length === 0 ? (
-                                    <View style={styles.noVerifications}>
-                                        <Feather name="inbox" size={48} color="#cbd5e1" />
-                                        <Text style={styles.noVerificationsText}>No alerts sent yet</Text>
-                                    </View>
-                                ) : (
-                                    alertHistory.map((item) => (
-                                        <View key={item.id} style={styles.verificationCard}>
-                                            <View style={styles.verificationHeader}>
-                                                <View style={[styles.verificationSourceBadge, { backgroundColor: item.level === 'warning' ? '#fee2e2' : item.level === 'watch' ? '#fef3c7' : '#dbeafe' }]}>
-                                                    <Text style={[styles.verificationSourceText, { color: item.level === 'warning' ? '#b91c1c' : item.level === 'watch' ? '#b45309' : '#1d4ed8' }]}>
-                                                        {item.level.toUpperCase()}
-                                                    </Text>
-                                                </View>
-                                                <Text style={styles.verificationTimestamp}>{new Date(item.timestamp).toLocaleDateString()} {new Date(item.timestamp).toLocaleTimeString()}</Text>
-                                            </View>
-                                            <Text style={styles.verificationBarangay}>{item.title}</Text>
-                                            <Text style={styles.verificationMessage}>"{item.description}"</Text>
-                                            <Text style={styles.verificationReporter}>Targets: {item.barangay}</Text>
-                                        </View>
-                                    ))
-                                )}
-                            </ScrollView>
-                        </Animated.View>
+            {/* Pending Verifications */}
+            <View style={styles.ccOpsRight}>
+                <View style={[styles.ccPanel, { borderLeftWidth: 4, borderLeftColor: '#3b82f6' }]}>
+                    <View style={styles.ccPanelHeader}>
+                        <View>
+                            <Text style={styles.ccPanelTitle}>Citizen Reports</Text>
+                            <Text style={styles.ccPanelSubtitle}>Incoming field data</Text>
+                        </View>
+                        <Feather name="users" size={20} color="#3b82f6" />
                     </View>
 
-                    {/* Right Panel: Pending Verifications with Flip */}
-                    <View style={styles.alertVerificationsPanelContainer}>
-                        {/* Front Side */}
-                        <Animated.View
-                            style={[
-                                styles.alertVerificationsPanel,
-                                {
-                                    transform: [{ rotateY: verificationsFrontRotate }],
-                                    opacity: verificationsFrontOpacity,
-                                    backfaceVisibility: 'hidden',
-                                    zIndex: isVerificationsFlipped ? 0 : 1
-                                }
-                            ]}
-                            pointerEvents={isVerificationsFlipped ? 'none' : 'auto'}
-                        >
-                            <View style={styles.alertPanelHeader}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#ECFAE5', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Feather name="check-square" size={20} color="#1a3d0a" />
+                    {loadingVerifications ? (
+                        <ActivityIndicator size="small" color="#3b82f6" />
+                    ) : verifications.length === 0 ? (
+                        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                            <Feather name="check-square" size={32} color="#cbd5e1" />
+                            <Text style={{ color: '#94a3b8', marginTop: 12, fontSize: 13 }}>No reports to verify</Text>
+                        </View>
+                    ) : (
+                        <ScrollView style={{ maxHeight: 600 }} showsVerticalScrollIndicator={false}>
+                            {verifications.map((item) => (
+                                <View key={item.id} style={{ padding: 16, backgroundColor: '#f8fafc', borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                                        <Text style={{ fontSize: 12, color: '#3b82f6', fontWeight: '700' }}>{item.type.toUpperCase()}</Text>
+                                        <Text style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
                                     </View>
-                                    <Text style={styles.alertPanelTitle}>Pending Verifications</Text>
+                                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>{item.location}</Text>
+                                    <Text style={{ fontSize: 13, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>"{item.description}"</Text>
+                                    
+                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+                                        <TouchableOpacity 
+                                            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, backgroundColor: '#dcfce7', borderRadius: 8 }}
+                                            onPress={() => handleVerify(item.id)}
+                                        >
+                                            <Feather name="check" size={14} color="#166534" />
+                                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>Verify</Text>
+                                        </TouchableOpacity>
+                                        <TouchableOpacity 
+                                            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, backgroundColor: '#fee2e2', borderRadius: 8 }}
+                                            onPress={() => handleReject(item.id)}
+                                        >
+                                            <Feather name="x" size={14} color="#991b1b" />
+                                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#991b1b' }}>Dismiss</Text>
+                                        </TouchableOpacity>
+                                    </View>
                                 </View>
-                                <TouchableOpacity
+                            ))}
+                        </ScrollView>
+                    )}
+                </View>
+            </View>
+        </View>
+    );
+
+    const renderBroadcastStudio = () => (
+        <View style={styles.ccBroadcastGrid}>
+            <View style={styles.ccFormSection}>
+                <View style={styles.ccPanel}>
+                    <Text style={[styles.ccPanelTitle, { marginBottom: 20 }]}>Broadcast Alert Studio</Text>
+                    
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={styles.alertInputLabel}>Priority Level</Text>
+                        <View style={styles.ccBrgyGrid}>
+                            {['advisory', 'watch', 'warning'].map(level => (
+                                <TouchableOpacity 
+                                    key={level}
                                     style={[
-                                        styles.flipToggleButton,
-                                        hoverVerificationsFront && styles.flipToggleButtonHover
+                                        styles.ccBrgyChip, 
+                                        alertType === level && { borderColor: level === 'advisory' ? '#3b82f6' : level === 'watch' ? '#f59e0b' : '#ef4444', backgroundColor: level === 'advisory' ? '#eff6ff' : level === 'watch' ? '#fffbeb' : '#fef2f2' }
                                     ]}
-                                    onPress={flipVerificationsCard}
-                                    onMouseEnter={() => setHoverVerificationsFront(true)}
-                                    onMouseLeave={() => setHoverVerificationsFront(false)}
+                                    onPress={() => setAlertType(level)}
                                 >
-                                    <Feather
-                                        name="layers"
-                                        size={16}
-                                        color={hoverVerificationsFront ? '#001D39' : '#0A4174'}
-                                        style={{ marginRight: 6 }}
-                                    />
-                                    <Text style={[
-                                        styles.flipToggleButtonText,
-                                        hoverVerificationsFront && styles.flipToggleButtonTextHover
-                                    ]}>Report History</Text>
+                                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: level === 'advisory' ? '#3b82f6' : level === 'watch' ? '#f59e0b' : '#ef4444' }} />
+                                    <Text style={[styles.ccBrgyChipText, alertType === level && { color: level === 'advisory' ? '#1d4ed8' : level === 'watch' ? '#b45309' : '#b91c1c', fontWeight: '700' }]}>
+                                        {level.toUpperCase()}
+                                    </Text>
                                 </TouchableOpacity>
-                            </View>
+                            ))}
+                        </View>
+                    </View>
 
-                            <ScrollView style={styles.verificationsScroll} contentContainerStyle={styles.verificationsScrollContent} showsVerticalScrollIndicator={false}>
-                                {loadingVerifications ? (
-                                    <ActivityIndicator size="large" color="#1d6ee5" style={{ marginTop: 20 }} />
-                                ) : verifications.length === 0 ? (
-                                    <View style={styles.noVerifications}>
-                                        <Feather name="inbox" size={48} color="#cbd5e1" />
-                                        <Text style={styles.noVerificationsText}>No pending reports to verify</Text>
-                                    </View>
-                                ) : (
-                                    verifications.map((item) => (
-                                        <View key={item.id} style={styles.verificationCard}>
-                                            <View style={styles.verificationHeader}>
-                                                <View style={styles.verificationSourceBadge}>
-                                                    <Text style={styles.verificationSourceText}>{item.type}</Text>
-                                                </View>
-                                                <Text style={styles.verificationTimestamp}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
-                                            </View>
-                                            <Text style={styles.verificationBarangay}>{item.location}</Text>
-                                            <Text style={styles.verificationMessage}>"{item.description}"</Text>
-                                            <Text style={styles.verificationReporter}>Reported by: {item.reporter_name}</Text>
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={styles.alertInputLabel}>Alert Headline</Text>
+                        <TextInput
+                            style={[styles.modalInput, { backgroundColor: '#f8fafc' }]}
+                            placeholder="e.g. Critical Water Level Warning"
+                            value={alertTitle}
+                            onChangeText={setAlertTitle}
+                        />
+                    </View>
 
-                                            {item.image_url && (
-                                                <TouchableOpacity
-                                                    style={{
-                                                        flexDirection: 'row',
-                                                        alignItems: 'center',
-                                                        marginTop: 8,
-                                                        marginBottom: 8,
-                                                        padding: 8,
-                                                        backgroundColor: '#f1f5f9',
-                                                        borderRadius: 8,
-                                                        alignSelf: 'flex-start'
-                                                    }}
-                                                    onPress={() => setSelectedImage(`${API_BASE_URL}${item.image_url}`)}
-                                                >
-                                                    <Feather name="image" size={16} color="#475569" style={{ marginRight: 8 }} />
-                                                    <Text style={{ color: "#475569", fontSize: 13, fontWeight: "600" }}>View Proof</Text>
-                                                </TouchableOpacity>
-                                            )}
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={styles.alertInputLabel}>Dispatch Message</Text>
+                        <TextInput
+                            style={[styles.alertMessageInput, { backgroundColor: '#f8fafc', height: 120 }]}
+                            placeholder="Provide clear instructions for affected residents..."
+                            multiline
+                            value={alertMessage}
+                            onChangeText={setAlertMessage}
+                        />
+                    </View>
 
-                                            <View style={styles.verificationActions}>
-                                                <TouchableOpacity
-                                                    style={[styles.verifyButton, { backgroundColor: "#dcfce7" }]}
-                                                    onPress={() => handleVerify(item.id)}
-                                                >
-                                                    <Feather name="check" size={16} color="#166534" />
-                                                    <Text style={[styles.verifyButtonText, { color: "#166534" }]}>Verify</Text>
-                                                </TouchableOpacity>
-                                                <TouchableOpacity
-                                                    style={[styles.rejectButton, { backgroundColor: "#fee2e2" }]}
-                                                    onPress={() => handleReject(item.id)}
-                                                >
-                                                    <Feather name="x" size={16} color="#991b1b" />
-                                                    <Text style={[styles.rejectButtonText, { color: "#991b1b" }]}>Dismiss</Text>
-                                                </TouchableOpacity>
-                                            </View>
-                                        </View>
-                                    ))
-                                )}
-                            </ScrollView>
-                        </Animated.View>
+                    <View style={{ marginBottom: 24 }}>
+                        <Text style={styles.alertInputLabel}>Target Coverage</Text>
+                        <View style={styles.ccBrgyGrid}>
+                            {barangays.map(b => (
+                                <TouchableOpacity 
+                                    key={b}
+                                    style={[styles.ccBrgyChip, selectedBarangays.includes(b) && styles.ccBrgyChipActive]}
+                                    onPress={() => toggleBarangay(b)}
+                                >
+                                    {selectedBarangays.includes(b) && <Feather name="check" size={14} color="#1d4ed8" />}
+                                    <Text style={[styles.ccBrgyChipText, selectedBarangays.includes(b) && styles.ccBrgyChipTextActive]}>{b}</Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
 
-                        {/* Back Side (All User Reports History) */}
-                        <Animated.View
-                            style={[
-                                styles.alertVerificationsPanel,
-                                styles.alertPanelBack,
-                                {
-                                    transform: [{ rotateY: verificationsBackRotate }],
-                                    opacity: verificationsBackOpacity,
-                                    backfaceVisibility: 'hidden',
-                                    zIndex: isVerificationsFlipped ? 1 : 0
-                                }
-                            ]}
-                            pointerEvents={isVerificationsFlipped ? 'auto' : 'none'}
-                        >
-                            <View style={styles.alertPanelHeader}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <View style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center' }}>
-                                        <Feather name="users" size={20} color="#0f172a" />
-                                    </View>
-                                    <Text style={styles.alertPanelTitle}>User Reports History</Text>
+                    <TouchableOpacity 
+                        style={[styles.primaryBtn, { backgroundColor: '#0f172a', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 }]}
+                        onPress={handleBroadcast}
+                        disabled={loading}
+                    >
+                        {loading ? <ActivityIndicator size="small" color="#fff" /> : (
+                            <>
+                                <Feather name="zap" size={20} color="#fff" />
+                                <Text style={[styles.primaryBtnText, { color: '#fff' }]}>Launch Broadcast</Text>
+                            </>
+                        )}
+                    </TouchableOpacity>
+                </View>
+            </View>
+
+            <View style={styles.ccHistorySection}>
+                <View style={styles.ccPanel}>
+                    <Text style={styles.ccPanelTitle}>Operational History</Text>
+                    <Text style={styles.ccPanelSubtitle}>Review past broadcasts</Text>
+                    
+                    <ScrollView style={{ marginTop: 20, maxHeight: 700 }} showsVerticalScrollIndicator={false}>
+                        {alertHistory.map(item => (
+                            <View key={item.id} style={{ paddingBottom: 16, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                    <Text style={{ fontSize: 11, fontWeight: '800', color: item.level === 'warning' ? '#ef4444' : '#64748b' }}>
+                                        {item.level.toUpperCase()}
+                                    </Text>
+                                    <Text style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(item.timestamp).toLocaleDateString()}</Text>
                                 </View>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.flipToggleButton,
-                                        hoverVerificationsBack && styles.flipToggleButtonHover
-                                    ]}
-                                    onPress={flipVerificationsCard}
-                                    onMouseEnter={() => setHoverVerificationsBack(true)}
-                                    onMouseLeave={() => setHoverVerificationsBack(false)}
-                                >
-                                    <Feather
-                                        name="arrow-left"
-                                        size={16}
-                                        color={hoverVerificationsBack ? '#001D39' : '#0A4174'}
-                                        style={{ marginRight: 6 }}
-                                    />
-                                    <Text style={[
-                                        styles.flipToggleButtonText,
-                                        hoverVerificationsBack && styles.flipToggleButtonTextHover
-                                    ]}>Back to Verify</Text>
-                                </TouchableOpacity>
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1e293b' }}>{item.title}</Text>
+                                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }} numberOfLines={2}>{item.description}</Text>
                             </View>
+                        ))}
+                    </ScrollView>
+                </View>
+            </View>
+        </View>
+    );
 
-                            <ScrollView style={styles.verificationsScroll} contentContainerStyle={styles.verificationsScrollContent} showsVerticalScrollIndicator={false}>
-                                {loadingAllReports ? (
-                                    <ActivityIndicator size="large" color="#1d6ee5" style={{ marginTop: 20 }} />
-                                ) : allReports.length === 0 ? (
-                                    <View style={styles.noVerifications}>
-                                        <Feather name="inbox" size={48} color="#cbd5e1" />
-                                        <Text style={styles.noVerificationsText}>No reports found</Text>
-                                    </View>
-                                ) : (
-                                    allReports.map((item) => (
-                                        <View key={item.id} style={[styles.verificationCard, { opacity: item.status === 'pending' ? 1 : 0.7 }]}>
-                                            <View style={styles.verificationHeader}>
-                                                <View style={[styles.verificationSourceBadge, { backgroundColor: item.status === 'verified' ? '#dcfce7' : item.status === 'dismissed' ? '#fee2e2' : '#f1f5f9' }]}>
-                                                    <Text style={[styles.verificationSourceText, { color: item.status === 'verified' ? '#166534' : item.status === 'dismissed' ? '#991b1b' : '#64748b' }]}>
-                                                        {item.status.toUpperCase()}
-                                                    </Text>
-                                                </View>
-                                                <Text style={styles.verificationTimestamp}>{new Date(item.timestamp).toLocaleDateString()} {new Date(item.timestamp).toLocaleTimeString()}</Text>
-                                            </View>
-                                            <Text style={styles.verificationBarangay}>{item.location}</Text>
-                                            <Text style={styles.verificationMessage}>"{item.description}"</Text>
-                                            <Text style={styles.verificationReporter}>Reported by: {item.reporter_name}</Text>
-                                        </View>
-                                    ))
-                                )}
-                            </ScrollView>
-                        </Animated.View>
+    const renderAuditLog = () => (
+        <View style={styles.ccPanel}>
+            <View style={styles.ccPanelHeader}>
+                <View>
+                    <Text style={styles.ccPanelTitle}>System Audit Log</Text>
+                    <Text style={styles.ccPanelSubtitle}>Tracking all escalation events</Text>
+                </View>
+                <TouchableOpacity style={[styles.ccActionButton, { backgroundColor: '#f1f5f9' }]}>
+                    <Feather name="download" size={16} color="#64748b" />
+                    <Text style={styles.ccActionButtonText}>Export CSV</Text>
+                </TouchableOpacity>
+            </View>
+            
+            <View style={{ marginTop: 20 }}>
+                <View style={{ flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 2, borderBottomColor: '#f1f5f9', backgroundColor: '#f8fafc', paddingHorizontal: 12 }}>
+                    <Text style={{ flex: 1, fontWeight: '700', color: '#64748b', fontSize: 12 }}>EVENT</Text>
+                    <Text style={{ flex: 1, fontWeight: '700', color: '#64748b', fontSize: 12 }}>TRANSITION</Text>
+                    <Text style={{ flex: 1, fontWeight: '700', color: '#64748b', fontSize: 12 }}>ACTOR</Text>
+                    <Text style={{ flex: 1, fontWeight: '700', color: '#64748b', fontSize: 12 }}>TIMESTAMP</Text>
+                </View>
+                {/* Audit details would go here, fetching from /api/subscriptions/escalation-log/... */}
+                <View style={{ alignItems: 'center', paddingVertical: 100 }}>
+                    <Feather name="lock" size={48} color="#cbd5e1" />
+                    <Text style={{ color: '#94a3b8', marginTop: 16 }}>Advanced auditing data available in production</Text>
+                </View>
+            </View>
+        </View>
+    );
+
+    return (
+        <View style={styles.dashboardRoot}>
+            <AdminSidebar activePage="alert-management" onNavigate={onNavigate} onLogout={onLogout} variant={userRole} />
+
+            <View style={styles.dashboardMain}>
+                <View style={styles.ccHeader}>
+                    <View>
+                        <Text style={styles.dashboardTopTitle}>Command Center</Text>
+                        <Text style={styles.dashboardTopSubtitle}>Redesign 2.0 • Tactical Flood Monitoring</Text>
+                    </View>
+                    <View style={styles.dashboardTopRight}>
+                        <View style={styles.dashboardStatusPill}>
+                            <View style={[styles.dashboardStatusDot, { backgroundColor: '#16a34a' }]} />
+                            <Text style={styles.dashboardStatusText}>Mission Ready</Text>
+                        </View>
+                        <RealTimeClock style={styles.dashboardTopDate} />
                     </View>
                 </View>
+
+                {renderTabs()}
+
+                <ScrollView showsVerticalScrollIndicator={false}>
+                    {activeTab === "operations" && renderOperations()}
+                    {activeTab === "broadcast" && renderBroadcastStudio()}
+                    {activeTab === "audit" && renderAuditLog()}
+                </ScrollView>
             </View>
 
             {/* Image Modal */}
@@ -865,7 +662,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                         {selectedImage && (
                             <Image
                                 source={{ uri: selectedImage }}
-                                style={{ width: '100%', height: 300, resizeMode: 'contain', backgroundColor: '#000' }}
+                                style={{ width: '100%', height: 400, resizeMode: 'contain', backgroundColor: '#000' }}
                             />
                         )}
                     </View>

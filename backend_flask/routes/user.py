@@ -20,14 +20,15 @@ def get_user_profile(user_id):
     
     try:
         if user_type == 'admin':
-            # Admins table has: id, username, password, role, created_at, avatar_url
-            cursor.execute("SELECT id, username, role, avatar_url FROM admins WHERE id = %s", (user_id,))
+            # Admins table has: id, username, full_name, phone, password, role, created_at, avatar_url
+            cursor.execute("SELECT id, username, full_name, phone, role, avatar_url FROM admins WHERE id = %s", (user_id,))
             user = cursor.fetchone()
             if user:
                 # Map to frontend expected format
-                user['full_name'] = "Super Admin" # or user['username']
                 user['email'] = user['username']
-                user['phone'] = "" # Admins don't have phone in current schema
+                # phone is already in user dict if it exists in schema
+                if not user.get('full_name'):
+                    user['full_name'] = "Super Admin"
                 user['barangay'] = "System"
         else:
             # Fetch user details
@@ -122,12 +123,12 @@ def update_user_profile(user_id):
              # Admins table: id, username, role, ...
              # We map 'email' from frontend to 'username' here.
              # Check if username exists for OTHER admins
-             cursor.execute("SELECT id FROM admins WHERE username = %s AND id != %s", (email, user_id))
-             if cursor.fetchone():
-                 return jsonify({"error": "Username/Email is already in use by another admin"}), 409
-                 
-             # Only update username for now as admins don't have other fields
-             cursor.execute("UPDATE admins SET username = %s WHERE id = %s", (email, user_id))
+             # Update username, full_name and phone for admins
+             cursor.execute("""
+                UPDATE admins 
+                SET username = %s, full_name = %s, phone = %s 
+                WHERE id = %s
+             """, (email, full_name, phone, user_id))
              
         else:
             # Check if email is already taken by another user

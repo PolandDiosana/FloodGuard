@@ -2752,5 +2752,199 @@ export const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: "Poppins_400Regular",
         color: "#64748b",
-    }
+    },
+    // --- COMMAND CENTER 2.0 REDESIGN STYLES ---
+    ccHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 24,
+        paddingBottom: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    ccTabContainer: {
+        flexDirection: 'row',
+        backgroundColor: '#f1f5f9',
+        borderRadius: 12,
+        padding: 4,
+        alignSelf: 'flex-start',
+        marginBottom: 24,
+    },
+    ccTab: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 20,
+        borderRadius: 10,
+        gap: 8,
+    },
+    ccTabActive: {
+        backgroundColor: '#ffffff',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        elevation: 2,
+    },
+    ccTabText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    ccTabTextActive: {
+        color: '#0f172a',
+    },
+    ccAuditBadge: {
+        backgroundColor: '#0f172a',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 6,
+        marginLeft: 4,
+    },
+    ccAuditBadgeText: {
+        color: '#fff',
+        fontSize: 10,
+        fontWeight: '800',
+    },
+
+    // Mission Control (Operations Tab)
+    ccOpsGrid: {
+        flexDirection: 'row',
+        gap: 20,
+    },
+    ccOpsLeft: {
+        flex: 1.5,
+    },
+    ccOpsRight: {
+        flex: 1,
+    },
+    ccPanel: {
+        backgroundColor: '#ffffff',
+        borderRadius: 20,
+        padding: 24,
+        borderWidth: 1,
+        borderColor: '#f1f5f9',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.04,
+        shadowRadius: 10,
+        elevation: 2,
+        marginBottom: 20,
+    },
+    ccPanelHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 20,
+    },
+    ccPanelTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#0f172a',
+    },
+    ccPanelSubtitle: {
+        fontSize: 13,
+        color: '#64748b',
+        marginTop: 2,
+    },
+
+    // Refined Alert Cards
+    ccAlertCard: {
+        backgroundColor: '#f8fafc',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
+        borderWidth: 1,
+        borderColor: '#f1f5f9',
+    },
+    ccAlertCardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+    },
+    ccAlertLevelBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 20,
+    },
+    ccAlertLevelText: {
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    ccAlertProgressContainer: {
+        height: 4,
+        backgroundColor: '#e2e8f0',
+        borderRadius: 2,
+        marginVertical: 12,
+        overflow: 'hidden',
+    },
+    ccAlertProgressBar: {
+        height: '100%',
+        borderRadius: 2,
+    },
+    ccAlertActionRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 12,
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: '#f1f5f9',
+    },
+    ccActionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 10,
+        gap: 8,
+    },
+    ccActionButtonText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+
+    // Broadcast Studio
+    ccBroadcastGrid: {
+        flexDirection: 'row',
+        gap: 24,
+    },
+    ccFormSection: {
+        flex: 1,
+    },
+    ccHistorySection: {
+        width: 380,
+    },
+    ccBrgyGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 8,
+    },
+    ccBrgyChip: {
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 10,
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    ccBrgyChipActive: {
+        backgroundColor: '#eff6ff',
+        borderColor: '#3b82f6',
+    },
+    ccBrgyChipText: {
+        fontSize: 13,
+        color: '#64748b',
+        fontWeight: '500',
+    },
+    ccBrgyChipTextActive: {
+        color: '#1d4ed8',
+        fontWeight: '600',
+    },
 });

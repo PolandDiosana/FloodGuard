@@ -27,7 +27,7 @@ class User:
                 username=user_data['username'],
                 role=user_data['role'],
                 password_hash=user_data['password'],
-                full_name="Super Admin" # Explicit name for super admins
+                full_name=user_data.get('full_name') or "Super Admin"
             )
 
         # 2. Check users table (mobile users) using email as username
