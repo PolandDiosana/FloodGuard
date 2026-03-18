@@ -52,9 +52,7 @@ export default function App() {
 
       if (token && savedRole) {
         setIsLoggedIn(true);
-        // Set initial body background
-        document.body.style.backgroundColor = token ? '#ECFAE5' : '#001D39';
-        // Map backend role to app state role
+        document.body.style.backgroundColor = token ? "#ECFAE5" : "#001D39";
         const roleStr = savedRole === "super_admin" ? "superadmin" : "lgu";
         setUserRole(roleStr);
 
@@ -86,7 +84,7 @@ export default function App() {
         localStorage.removeItem("userRole");
         localStorage.removeItem("activePage");
         sessionStorage.removeItem("welcomeBannerShown");
-        document.body.style.backgroundColor = '#001D39';
+        document.body.style.backgroundColor = "#001D39";
       }
       setIsLoading(false);
     }, 1500);
@@ -108,15 +106,16 @@ export default function App() {
   }
 
   if (!isLoggedIn) {
-    return <LandingPage
-      onLoginSuccess={handleLoginSuccess}
-      onNavigatePublic={setPublicPage}
-      initialLoginOpen={openLogin}
-      resetInitialLogin={() => setOpenLogin(false)}
-    />;
+    return (
+      <LandingPage
+        onLoginSuccess={handleLoginSuccess}
+        onNavigatePublic={setPublicPage}
+        initialLoginOpen={openLogin}
+        resetInitialLogin={() => setOpenLogin(false)}
+      />
+    );
   }
 
-  // Render appropriate page based on activePage state
   const renderPage = () => {
     switch (activePage) {
       case "overview":
@@ -140,7 +139,6 @@ export default function App() {
       case "evacuation-management":
         return <EvacuationManagementPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       default:
-        // For pages handled internally by dashboards (like user-management for superadmin)
         if (userRole === "superadmin") {
           return <SuperAdminDashboard onNavigate={handleNavigate} onLogout={handleLogout} activePage={activePage} />;
         }
@@ -151,8 +149,6 @@ export default function App() {
   return (
     <View style={styles.root}>
       {renderPage()}
-
-      {/* Global Loading Overlay */}
       {isLoading && <LoadingOverlay message="Logging Out..." accentColor="#ef4444" />}
     </View>
   );

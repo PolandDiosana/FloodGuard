@@ -10,14 +10,24 @@ auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
+    data = request.get_json() or {}
+    username = (data.get('username') or '').strip()
+    password = (data.get('password') or '').strip()
+
+    print(f"[DEBUG LOGIN] Received login attempt user={username} pass_len={len(password)}")
 
     if not username or not password:
+        print("[DEBUG LOGIN] Missing username or password")
         return jsonify({"error": "Username and password required"}), 400
 
     user = User.find_by_username(username)
+
+    if not user:
+        print(f"[DEBUG LOGIN] User not found: {username}")
+    else:
+        print(f"[DEBUG LOGIN] Found user: {user.username} role={user.role}")
+        ok = user.check_password(password)
+        print(f"[DEBUG LOGIN] Password check: {ok}")
 
     if user and user.check_password(password):
         token = jwt.encode({

@@ -74,6 +74,7 @@ const ACCOUNT_IMAGE = require("./assets/flood.png");
 const LOCATION_IMAGE = require("./assets/flood4.jpg");
 const NOTIFY_IMAGE = require("./assets/flood5.jpg");
 const LOGO = require("./assets/logo.png");
+const API_BASE = "http://10.133.179.238:5000";
 
 const safeGoBack = (navigation, fallback) => {
   if (navigation?.canGoBack?.()) {
@@ -105,6 +106,7 @@ const SENSOR_POINTS = [
   { id: "sensor-3", latitude: 10.3152, longitude: 123.9169, risk: "high" },
   { id: "sensor-4", latitude: 10.3181, longitude: 123.9207, risk: "low" },
 ];
+const IOT_SENSOR_ID = "sensor-1";
 
 const USER_LOCATION = { latitude: 10.3165, longitude: 123.9176 };
 
@@ -694,7 +696,7 @@ const EditProfileModal = ({ visible, userData, onSave, onCancel, onPickImage, se
                 />
               ) : userData?.avatar_url ? (
                 <Image
-                  source={{ uri: `http://172.16.17.33:5000${userData.avatar_url}?t=${avatarTimestamp}` }}
+                  source={{ uri: `${API_BASE}${userData.avatar_url}?t=${avatarTimestamp}` }}
                   style={{ width: '100%', height: '100%', borderRadius: 45 }}
                 />
               ) : (
@@ -797,7 +799,7 @@ const LoginScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      const response = await fetch("http://172.16.17.33:5000/api/auth/login", {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: email, password: password }),
@@ -950,7 +952,7 @@ const ChangePasswordScreen = ({ navigation }) => {
       const storedUser = await AsyncStorage.getItem('userData');
       const user = JSON.parse(storedUser);
 
-      const response = await fetch("http://172.16.17.33:5000/api/auth/change-password", {
+      const response = await fetch(`${API_BASE}/api/auth/change-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1452,7 +1454,7 @@ const NotificationsScreen = ({ navigation, toggles, setToggles, form, selection 
 
   const onFinish = async () => {
     try {
-      const response = await fetch("http://172.16.17.33:5000/api/auth/register", {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1640,21 +1642,43 @@ const CustomHeader = ({ navigation, title, subtitle }) => {
 
       // Get user data to fetch personalized subscribed alerts
       const storedUser = await AsyncStorage.getItem("userData");
-      let alertsUrl = "http://172.16.17.33:5000/api/alerts/";
+      let alertsUrl = `${API_BASE}/api/alerts/`;
       if (storedUser) {
         const user = JSON.parse(storedUser);
         if (user?.id) {
-          alertsUrl = `http://172.16.17.33:5000/api/subscriptions/user/${user.id}/alerts`;
+          alertsUrl = `${API_BASE}/api/subscriptions/user/${user.id}/alerts`;
         }
       }
 
       const [alertsRes, reportsRes] = await Promise.all([
         fetch(alertsUrl),
-        fetch("http://172.16.17.33:5000/api/reports/")
+        fetch(`${API_BASE}/api/reports/`)
       ]);
 
-      const alerts = await alertsRes.json();
-      const reports = await reportsRes.json();
+      let alerts = [];
+      let reports = [];
+
+      if (alertsRes.ok) {
+        try {
+          alerts = await alertsRes.json();
+        } catch (e) {
+          console.warn('Could not parse alerts JSON', e, await alertsRes.text());
+          alerts = [];
+        }
+      } else {
+        console.warn('Alerts API error', alertsRes.status, await alertsRes.text());
+      }
+
+      if (reportsRes.ok) {
+        try {
+          reports = await reportsRes.json();
+        } catch (e) {
+          console.warn('Could not parse reports JSON', e, await reportsRes.text());
+          reports = [];
+        }
+      } else {
+        console.warn('Reports API error', reportsRes.status, await reportsRes.text());
+      }
 
       const normalizedAlerts = (alerts || []).map(a => ({
         ...a,
@@ -1909,6 +1933,38 @@ const DashboardScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const styles = getStyles(theme);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [latestSensor, setLatestSensor] = useState(null);
+  const [loadingSensor, setLoadingSensor] = useState(true);
+
+  useEffect(() => {
+    const fetchLatest = async () => {
+      try {
+        setLoadingSensor(true);
+        const res = await fetch(`${API_BASE}/api/iot/latest`);
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        const data = await res.json();
+        if (data && data.sensor_id) {
+          setLatestSensor({
+            ...data,
+            flood_level: Number(data.flood_level ?? 0),
+            raw_distance: Number(data.raw_distance ?? 0),
+            status: data.is_offline ? "OFFLINE" : (data.status || "UNKNOWN"),
+          });
+        } else {
+          setLatestSensor(null);
+        }
+      } catch (e) {
+        console.warn("Failed fetch latest sensor", e);
+        setLatestSensor(null);
+      } finally {
+        setLoadingSensor(false);
+      }
+    };
+
+    fetchLatest();
+    const id = setInterval(fetchLatest, 5000);
+    return () => clearInterval(id);
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -1918,7 +1974,6 @@ const DashboardScreen = ({ navigation }) => {
       };
 
       const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-
       return () => backHandler.remove();
     }, [])
   );
@@ -1981,8 +2036,8 @@ const DashboardScreen = ({ navigation }) => {
             <View style={styles.gaugeGlassContainer}>
               <View style={styles.gaugeCapsule}>
                 <WaterWave
-                  color={getStatusColor("ADVISORY")}
-                  fillPercentage={60}
+                  color={getStatusColor(latestSensor?.status || "UNKNOWN")}
+                  fillPercentage={latestSensor ? Math.max(0, Math.min(100, latestSensor.flood_level || 0)) : 0}
                 />
 
                 {/* Level Markers */}
@@ -2003,12 +2058,12 @@ const DashboardScreen = ({ navigation }) => {
 
             <View style={styles.readingContainer}>
               <View style={styles.gaugeReading}>
-                <Text style={styles.gaugeReadingValue}>2.4</Text>
-                <Text style={styles.gaugeReadingUnit}>m</Text>
+                <Text style={styles.gaugeReadingValue}>{latestSensor ? Number(latestSensor.flood_level).toFixed(1) : "--"}</Text>
+                <Text style={styles.gaugeReadingUnit}>cm</Text>
               </View>
               <View style={styles.statusChip}>
-                <View style={[styles.statusChipDot, { backgroundColor: getStatusColor("ADVISORY") }]} />
-                <Text style={styles.statusChipText}>ADVISORY LEVEL</Text>
+                <View style={[styles.statusChipDot, { backgroundColor: getStatusColor(latestSensor?.status || "UNKNOWN") }]} />
+                <Text style={styles.statusChipText}>{latestSensor ? `${latestSensor.is_offline ? "OFFLINE" : (latestSensor.status || "UNKNOWN")} LEVEL` : "NO DATA"}</Text>
               </View>
             </View>
           </View>
@@ -2016,9 +2071,9 @@ const DashboardScreen = ({ navigation }) => {
           <View style={styles.sensorCardFooter}>
             <View style={styles.footerInfoItem}>
               <Feather name="info" size={14} color="#64748b" />
-              <Text style={styles.thresholdText}>Normal Range: <Text style={styles.thresholdTextBold}>0–2.5m</Text></Text>
+              <Text style={styles.thresholdText}>Normal Range: <Text style={styles.thresholdTextBold}>3–100cm</Text></Text>
             </View>
-            <Text style={styles.sensorIdText}>STATION ID: SN-A12B</Text>
+            <Text style={styles.sensorIdText}>STATION ID: {latestSensor?.sensor_id || "sensor-1"}</Text>
           </View>
         </View>
       </ScrollView>
@@ -2031,6 +2086,53 @@ const MapScreen = ({ navigation, route }) => {
   const styles = getStyles(theme);
 
   const [mapType, setMapType] = useState("standard");
+  const [sensorPointsState, setSensorPointsState] = useState(SENSOR_POINTS);
+  const [sensorData, setSensorData] = useState([]);
+  const [loadingSensors, setLoadingSensors] = useState(true);
+
+  const activeSensorPoint = sensorPointsState.find((s) => s.id === IOT_SENSOR_ID) || sensorPointsState[0] || { id: IOT_SENSOR_ID, latitude: 10.3189, longitude: 123.9162, risk: "low" };
+
+  const fetchSensorData = async () => {
+    try {
+      setLoadingSensors(true);
+      const res = await fetch(`${API_BASE}/api/iot/latest`);
+      if (!res.ok) {
+        throw new Error(`Status ${res.status}`);
+      }
+      const data = await res.json();
+      const sensorRecord = data?.sensor_id ? [{
+        ...data,
+        flood_level: Number(data.flood_level ?? 0),
+        raw_distance: Number(data.raw_distance ?? 0),
+        status: data.is_offline ? "OFFLINE" : (data.status || "UNKNOWN"),
+      }] : [];
+      setSensorData(sensorRecord);
+    } catch (err) {
+      console.warn("Failed load sensor data", err);
+      setSensorData([]);
+    } finally {
+      setLoadingSensors(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSensorData();
+    const interval = setInterval(fetchSensorData, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const latestMapSensor = sensorData[0] || {};
+  const mergedSensors = [
+    {
+      ...activeSensorPoint,
+      ...latestMapSensor,
+      flood_level: latestMapSensor?.flood_level ?? 0,
+      status: latestMapSensor?.is_offline ? "OFFLINE" : (latestMapSensor?.status || "NO DATA"),
+      risk:
+        (latestMapSensor?.flood_level ?? 0) >= 70 ? "high" : (latestMapSensor?.flood_level ?? 0) >= 40 ? "medium" : "low",
+    },
+  ];
+  const mapFocusSensor = mergedSensors[0];
   const bottomInset = Platform.OS === "android" ? 32 : 16;
   const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
   const mapRef = useRef(null);
@@ -2047,10 +2149,7 @@ const MapScreen = ({ navigation, route }) => {
     }
 
     mapRef.current.fitToCoordinates(
-      SENSOR_POINTS.map((sensor) => ({
-        latitude: sensor.latitude,
-        longitude: sensor.longitude,
-      })),
+      [{ latitude: mapFocusSensor.latitude, longitude: mapFocusSensor.longitude }],
       {
         edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
         animated: true,
@@ -2058,7 +2157,7 @@ const MapScreen = ({ navigation, route }) => {
     );
     const timer = setTimeout(() => setHighlightSensor(true), 900);
     return () => clearTimeout(timer);
-  }, [mapReady, shouldAnimate]);
+  }, [mapReady, shouldAnimate, mergedSensors]);
 
   return (
     <SafeAreaView style={styles.dashboardSafe}>
@@ -2098,20 +2197,20 @@ const MapScreen = ({ navigation, route }) => {
             }}
             pinColor="#74C5E6"
           />
-          {SENSOR_POINTS.map((sensor) => (
-            <Marker
-              key={sensor.id}
-              coordinate={{ latitude: sensor.latitude, longitude: sensor.longitude }}
-              pinColor={
-                sensor.risk === "low"
-                  ? "#32c26a"
-                  : sensor.risk === "medium"
-                    ? "#f5c542"
-                    : "#f35b5b"
-              }
-              opacity={highlightSensor ? 1 : 0.85}
-            />
-          ))}
+          <Marker
+            key={mapFocusSensor.id}
+            coordinate={{ latitude: mapFocusSensor.latitude, longitude: mapFocusSensor.longitude }}
+            pinColor={
+              mapFocusSensor.risk === "low"
+                ? "#32c26a"
+                : mapFocusSensor.risk === "medium"
+                  ? "#f5c542"
+                  : "#f35b5b"
+            }
+            opacity={highlightSensor ? 1 : 0.85}
+            title={mapFocusSensor.id}
+            description={`${mapFocusSensor.status || "UNKNOWN"} · ${mapFocusSensor.flood_level ?? "n/a"}m`}
+          />
         </MapView>
       </View>
       <View style={[styles.mapLegendBar, { paddingBottom: 18 + bottomInset }]}>
@@ -2131,7 +2230,7 @@ const MapScreen = ({ navigation, route }) => {
           </View>
         </View>
         <Text style={styles.sensorCount}>
-          4 sensors monitoring Barangay Mabolo
+          {loadingSensors ? "Loading sensors..." : `${mergedSensors.length} sensors monitoring Barangay Mabolo`}
         </Text>
       </View>
     </SafeAreaView>
@@ -2155,7 +2254,7 @@ const AlertsScreen = ({ navigation }) => {
 
   const fetchAlerts = async () => {
     try {
-      const response = await fetch("http://172.16.17.33:5000/api/alerts/");
+      const response = await fetch(`${API_BASE}/api/alerts/`);
       const data = await response.json();
       const mapped = data.map(a => ({
         ...a,
@@ -2401,7 +2500,7 @@ const EvacuationScreen = ({ navigation }) => {
 
   const fetchCenters = async () => {
     try {
-      const response = await fetch("http://172.16.17.33:5000/api/evacuation-centers/");
+      const response = await fetch(`${API_BASE}/api/evacuation-centers/`);
       const data = await response.json();
       const mapped = data.map(c => {
         const lat = parseFloat(c.lat);
@@ -2775,7 +2874,7 @@ const ReportScreen = ({ navigation, userName }) => {
 
   const fetchReports = async () => {
     try {
-      const response = await fetch(`http://172.16.17.33:5000/api/reports/?reporter_name=${encodeURIComponent(reporterName)}`);
+      const response = await fetch(`${API_BASE}/api/reports/?reporter_name=${encodeURIComponent(reporterName)}`);
       if (response.ok) {
         const data = await response.json();
         setRecentReports(data);
@@ -2811,7 +2910,7 @@ const ReportScreen = ({ navigation, userName }) => {
         });
       }
 
-      const response = await fetch("http://172.16.17.33:5000/api/reports/", {
+      const response = await fetch(`${API_BASE}/api/reports/`, {
         method: "POST",
         headers: {
           "Accept": "application/json",
@@ -3066,7 +3165,7 @@ const SettingsScreen = ({ navigation }) => {
       if (storedUser) {
         const user = JSON.parse(storedUser);
         // Fetch fresh data from API
-        const response = await fetch(`http://172.16.17.33:5000/api/users/${user.id}`);
+        const response = await fetch(`${API_BASE}/api/users/${user.id}`);
         if (response.ok) {
           const freshData = await response.json();
           setUserData(freshData);
@@ -3082,7 +3181,7 @@ const SettingsScreen = ({ navigation }) => {
   const fetchSubscriptions = async (userId) => {
     try {
       setSubsLoading(true);
-      const response = await fetch(`http://172.16.17.33:5000/api/subscriptions/user/${userId}`);
+      const response = await fetch(`${API_BASE}/api/subscriptions/user/${userId}`);
       if (response.ok) {
         const data = await response.json();
         setUserSubscriptions(data.map(sub => sub.barangay));
@@ -3108,7 +3207,7 @@ const SettingsScreen = ({ navigation }) => {
     try {
       if (isSubscribed) {
         // Unsubscribe
-        const res = await fetch(`http://172.16.17.33:5000/api/subscriptions/user/${userId}/barangay`, {
+        const res = await fetch(`${API_BASE}/api/subscriptions/user/${userId}/barangay`, {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ barangay })
@@ -3116,7 +3215,7 @@ const SettingsScreen = ({ navigation }) => {
         if (!res.ok) throw new Error("Unsubscribe failed");
       } else {
         // Subscribe
-        const res = await fetch(`http://172.16.17.33:5000/api/subscriptions/user/${userId}`, {
+        const res = await fetch(`${API_BASE}/api/subscriptions/user/${userId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ barangay })
@@ -3163,7 +3262,7 @@ const SettingsScreen = ({ navigation }) => {
         type: 'image/jpeg',
       });
 
-      const response = await fetch(`http://172.16.17.33:5000/api/users/${user.id}/avatar`, {
+      const response = await fetch(`${API_BASE}/api/users/${user.id}/avatar`, {
         method: 'POST',
         body: formData,
         headers: {
@@ -3201,7 +3300,7 @@ const SettingsScreen = ({ navigation }) => {
           type: 'image/jpeg',
         });
 
-        const avatarResponse = await fetch(`http://172.16.17.33:5000/api/users/${user.id}/avatar`, {
+        const avatarResponse = await fetch(`${API_BASE}/api/users/${user.id}/avatar`, {
           method: 'POST',
           body: formData,
           headers: {
@@ -3218,7 +3317,7 @@ const SettingsScreen = ({ navigation }) => {
       }
 
       // 2. Update profile details
-      const response = await fetch(`http://172.16.17.33:5000/api/users/${user.id}`, {
+      const response = await fetch(`${API_BASE}/api/users/${user.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -3303,7 +3402,7 @@ const SettingsScreen = ({ navigation }) => {
           <View style={styles.profileAvatar}>
             {userData.avatar_url ? (
               <Image
-                source={{ uri: `http://172.16.17.33:5000${userData.avatar_url}?t=${avatarTimestamp}` }}
+                source={{ uri: `${API_BASE}${userData.avatar_url}?t=${avatarTimestamp}` }}
                 style={{ width: '100%', height: '100%', borderRadius: 40 }}
               />
             ) : (

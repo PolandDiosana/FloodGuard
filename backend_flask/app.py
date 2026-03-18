@@ -8,6 +8,7 @@ from routes.reports import reports_bp
 from routes.user import user_bp
 from routes.evacuation import evacuation_bp
 from routes.subscriptions import subscriptions_bp
+from routes.iot import iot_bp
 from utils.db import close_db
 
 app = Flask(__name__)
@@ -27,6 +28,7 @@ app.register_blueprint(user_bp, url_prefix='/api/users')
 app.register_blueprint(admin_bp, url_prefix='/api/admin')
 app.register_blueprint(evacuation_bp, url_prefix='/api/evacuation-centers')
 app.register_blueprint(subscriptions_bp, url_prefix='/api/subscriptions')
+app.register_blueprint(iot_bp, url_prefix="/api/iot")
 
 # Teardown DB connection
 app.teardown_appcontext(close_db)
