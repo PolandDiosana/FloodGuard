@@ -1,5 +1,6 @@
-import "react-native-gesture-handler";
-import React, { useEffect, useMemo, useRef, useState, createContext, useContext } from "react";
+import 'react-native-gesture-handler';
+import 'react-native-reanimated';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   StyleSheet,
   Text,
@@ -36,7 +37,6 @@ import {
   MaterialCommunityIcons,
 } from "@expo/vector-icons";
 import { CardStyleInterpolators } from "@react-navigation/stack";
-import MapView, { Marker, Polygon, Polyline } from "react-native-maps";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -74,7 +74,7 @@ const ACCOUNT_IMAGE = require("./assets/flood.png");
 const LOCATION_IMAGE = require("./assets/flood4.jpg");
 const NOTIFY_IMAGE = require("./assets/flood5.jpg");
 const LOGO = require("./assets/logo.png");
-const API_BASE = "http://10.133.179.238:5000";
+const API_BASE = "http://172.17.69.238:5000";
 
 const safeGoBack = (navigation, fallback) => {
   if (navigation?.canGoBack?.()) {
@@ -1652,7 +1652,7 @@ const CustomHeader = ({ navigation, title, subtitle }) => {
 
       const [alertsRes, reportsRes] = await Promise.all([
         fetch(alertsUrl),
-        fetch(`${API_BASE}/api/reports/`)
+        fetch(`${API_BASE}/api/reports/?status=verified`)
       ]);
 
       let alerts = [];
@@ -2126,6 +2126,9 @@ const MapScreen = ({ navigation, route }) => {
     {
       ...activeSensorPoint,
       ...latestMapSensor,
+      // Use GPS coordinates from sensor data if available, otherwise fall back to static coordinates
+      latitude: latestMapSensor.latitude || activeSensorPoint.latitude,
+      longitude: latestMapSensor.longitude || activeSensorPoint.longitude,
       flood_level: latestMapSensor?.flood_level ?? 0,
       status: latestMapSensor?.is_offline ? "OFFLINE" : (latestMapSensor?.status || "NO DATA"),
       risk:
@@ -2209,7 +2212,12 @@ const MapScreen = ({ navigation, route }) => {
             }
             opacity={highlightSensor ? 1 : 0.85}
             title={mapFocusSensor.id}
-            description={`${mapFocusSensor.status || "UNKNOWN"} · ${mapFocusSensor.flood_level ?? "n/a"}m`}
+            description={`${mapFocusSensor.status || "UNKNOWN"} · ${mapFocusSensor.flood_level ?? "n/a"}cm · GPS: ${mapFocusSensor.latitude?.toFixed(4) ?? "N/A"}, ${mapFocusSensor.longitude?.toFixed(4) ?? "N/A"}`}
+            onCalloutPress={() => {
+              if (mapFocusSensor.maps_url) {
+                Linking.openURL(mapFocusSensor.maps_url);
+              }
+            }}
           />
         </MapView>
       </View>
@@ -2858,9 +2866,25 @@ const ReportScreen = ({ navigation, userName }) => {
   const [photos, setPhotos] = useState([]);
   const [recentReports, setRecentReports] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [userData, setUserData] = useState(null);
   const locationLabel = "Barangay San Jose, Cebu City";
 
   const reporterName = userName || "Anonymous";
+
+  // Load user data from AsyncStorage
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const storedUser = await AsyncStorage.getItem('userData');
+        if (storedUser) {
+          setUserData(JSON.parse(storedUser));
+        }
+      } catch (error) {
+        console.error('Error loading user data:', error);
+      }
+    };
+    loadUserData();
+  }, []);
 
 
 
@@ -2893,6 +2917,7 @@ const ReportScreen = ({ navigation, userName }) => {
     try {
       const formData = new FormData();
       formData.append("reporter_name", reporterName);
+      formData.append("reporter_email", userData?.email || "");
       formData.append("type", selectedType);
       formData.append("location", locationLabel);
       formData.append("description", description);
@@ -3141,7 +3166,7 @@ const SettingsScreen = ({ navigation }) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [avatarTimestamp, setAvatarTimestamp] = useState(Date.now());
-  
+
   // Subscription State
   const [showSubscriptions, setShowSubscriptions] = useState(false);
   const [userSubscriptions, setUserSubscriptions] = useState([]);
@@ -3497,8 +3522,8 @@ const SettingsScreen = ({ navigation }) => {
                   <Ionicons name="close" size={24} color={theme.textPrimary} />
                 </TouchableOpacity>
               </View>
-              
-              <Text style={{color: theme.textSecondary, marginBottom: 15, paddingHorizontal: 5}}>
+
+              <Text style={{ color: theme.textSecondary, marginBottom: 15, paddingHorizontal: 5 }}>
                 Subscribe to receive instant flood alerts for specific areas.
               </Text>
 
@@ -3520,9 +3545,9 @@ const SettingsScreen = ({ navigation }) => {
                         borderWidth: 1,
                         borderColor: theme.border
                       }}>
-                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 10}}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                           <Ionicons name="location" size={20} color={isSubscribed ? theme.primary : theme.textSecondary} />
-                          <Text style={{color: theme.textPrimary, fontSize: 16, fontWeight: '500'}}>{barangay}</Text>
+                          <Text style={{ color: theme.textPrimary, fontSize: 16, fontWeight: '500' }}>{barangay}</Text>
                         </View>
                         <Switch
                           value={isSubscribed}

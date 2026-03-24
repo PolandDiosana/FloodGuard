@@ -76,3 +76,70 @@ def send_credentials_email(to_email, full_name, password):
     except Exception as e:
         logger.error(f"Failed to send email to {to_email}: {e}", exc_info=True)
         return False, f"Error: {str(e)}"
+
+
+def send_dismissal_notification(reporter_email, reporter_name, report_type, location, rejection_reason):
+    """
+    Sends an email to the reporter when their report is dismissed.
+    """
+    if not USERNAME or not PASSWORD:
+        logging.error("Email credentials not configured.")
+        return False, "Email server not configured"
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = USERNAME
+        msg['To'] = reporter_email
+        msg['Subject'] = "Update on Your FloodGuard Report"
+
+        body = f"""
+        <html>
+          <body>
+            <h2>Hello {reporter_name},</h2>
+            <p>We have reviewed your report and wanted to provide an update.</p>
+            
+            <div style="background-color: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0;">
+                <h3>Report Details:</h3>
+                <p><strong>Type:</strong> {report_type}</p>
+                <p><strong>Location:</strong> {location}</p>
+            </div>
+            
+            <p><strong>Status:</strong> <span style="color: #dc3545;">Report Dismissed</span></p>
+            <p><strong>Reason:</strong> {rejection_reason}</p>
+            
+            <p>After careful review by our LGU officials, this report has been determined to not require immediate action at this time. This could be due to various factors such as the report being a duplicate, false alarm, or the situation has already been addressed.</p>
+            
+            <p>If you believe this assessment is incorrect or if the situation has changed, please feel free to submit a new report with updated information.</p>
+            
+            <br>
+            <p>Thank you for helping keep our community safe,</p>
+            <p>The FloodGuard Team</p>
+          </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(body, 'html'))
+
+        logger.info(f"Sending dismissal notification to {reporter_email}")
+        
+        try:
+            server = smtplib.SMTP(SERVER, PORT)
+            server.set_debuglevel(1)
+            server.starttls()
+            server.login(USERNAME, PASSWORD)
+            server.send_message(msg)
+            logger.info(f"Dismissal notification sent to {reporter_email}")
+        finally:
+            try:
+                server.quit()
+            except Exception:
+                pass
+        
+        return True, "Dismissal notification sent successfully"
+    
+    except smtplib.SMTPException as e:
+        logger.error(f"SMTP error sending dismissal notification to {reporter_email}: {e}", exc_info=True)
+        return False, f"SMTP Error: {str(e)}"
+    except Exception as e:
+        logger.error(f"Failed to send dismissal notification to {reporter_email}: {e}", exc_info=True)
+        return False, f"Error: {str(e)}"

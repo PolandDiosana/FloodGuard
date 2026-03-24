@@ -178,3 +178,55 @@ def sensor_status():
         "sensor_id": row.get("sensor_id"),
         "sensor_status": row.get("status")  # NORMAL / WARNING / ALARM
     }), 200
+
+
+@iot_bp.route("/sensor-by-location", methods=["GET"])
+def sensor_by_location():
+    """Fetch latest sensor data - optionally filtered by location via query param"""
+    location = request.args.get('location')  # Optional: barangay name or 'All'
+    
+    db = get_db()
+    cur = db.cursor(dictionary=True)
+    
+    # Get latest sensor readings (most recent first)
+    # If a location is specified, we could filter here if sensors had barangay fields
+    # For now, just return the latest sensor(s)
+    cur.execute("""
+        SELECT id, sensor_id, raw_distance, flood_level, status,
+               latitude, longitude, maps_url, created_at
+        FROM iot_readings
+        ORDER BY created_at DESC LIMIT 1
+    """)
+    row = cur.fetchone()
+    cur.close()
+
+    if not row:
+        return jsonify({"error": "No sensor data found"}), 404
+
+    created_at = row.get("created_at")
+    if isinstance(created_at, str):
+        try:
+            created_at_dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            created_at_dt = datetime.utcnow()
+    elif isinstance(created_at, datetime):
+        created_at_dt = created_at
+    else:
+        created_at_dt = datetime.utcnow()
+
+    age_seconds = (datetime.utcnow() - created_at_dt).total_seconds()
+    is_offline = age_seconds > 30
+
+    row["is_offline"] = is_offline
+    row["status"] = "OFFLINE" if is_offline else (row.get("status") or "UNKNOWN")
+
+    try:
+        row["flood_level"] = float(row.get("flood_level") or 0)
+    except Exception:
+        row["flood_level"] = 0.0
+    try:
+        row["raw_distance"] = float(row.get("raw_distance") or 0)
+    except Exception:
+        row["raw_distance"] = 0.0
+
+    return jsonify(row), 200

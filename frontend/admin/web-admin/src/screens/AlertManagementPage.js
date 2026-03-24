@@ -19,8 +19,6 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const [loadingAllReports, setLoadingAllReports] = useState(true);
     const [loadingAlertHistory, setLoadingAlertHistory] = useState(true);
 
-    const [selectedImage, setSelectedImage] = useState(null);
-
     // Escalation Control State
     const [activeAlerts, setActiveAlerts] = useState([]);
     const [loadingActiveAlerts, setLoadingActiveAlerts] = useState(true);
@@ -209,6 +207,47 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
         }
     };
 
+    const fetchSensorDataForBarangay = async (barangay) => {
+        try {
+            setLoadingSensorData(true);
+            const response = await fetch(`${API_BASE_URL}/api/iot/sensor-by-location?location=${encodeURIComponent(barangay)}`);
+            if (!response.ok) {
+                console.warn("Sensor data not found for location:", barangay);
+                setSensorDataForReport(null);
+                setLoadingSensorData(false);
+                return;
+            }
+            const data = await response.json();
+            setSensorDataForReport(data);
+            setLoadingSensorData(false);
+        } catch (error) {
+            console.error("Error fetching sensor data:", error);
+            setSensorDataForReport(null);
+            setLoadingSensorData(false);
+        }
+    };
+
+    const getSensorConsistency = (reportedLevel, sensorLevel) => {
+        if (!reportedLevel || !sensorLevel) return "UNKNOWN";
+        
+        const reportLow = ["ankle-high", "low", "light"].includes(reportedLevel?.toLowerCase());
+        const reportMed = ["waist-high", "medium"].includes(reportedLevel?.toLowerCase());
+        const reportHigh = ["chest-high", "high"].includes(reportedLevel?.toLowerCase());
+        
+        const sensorNum = parseInt(sensorLevel);
+        const sensorLow = sensorNum < 20;
+        const sensorMed = sensorNum >= 20 && sensorNum < 50;
+        const sensorHigh = sensorNum >= 50;
+
+        if ((reportLow && sensorLow) || (reportMed && sensorMed) || (reportHigh && sensorHigh)) {
+            return { status: "MATCHING", color: "#16a34a", icon: "✓" };
+        } else if (Math.abs((reportLow ? 15 : reportMed ? 35 : 70) - sensorNum) <= 20) {
+            return { status: "SIMILAR", color: "#f59e0b", icon: "≈" };
+        } else {
+            return { status: "DIFFERENT", color: "#ef4444", icon: "✕" };
+        }
+    };
+
     const toggleBarangay = (barangay) => {
         if (barangay === "All Barangays") {
             if (selectedBarangays.includes("All Barangays")) {
@@ -277,31 +316,51 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
         }
     };
 
-    const handleVerify = async (id) => {
+    const handleVerify = async (id, report) => {
         try {
-            await fetch(`http://localhost:5000/api/reports/${id}/status`, {
-                method: "PUT",
+            // Update report status to verified
+            await fetch(`${API_BASE_URL}/api/reports/${id}/verify`, {
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "verified" })
+                body: JSON.stringify({ 
+                    verified_by: localStorage.getItem("userName") || "Admin",
+                    flood_level: report.flood_level_reported || "medium"
+                })
             });
+
+            // Auto-broadcast as official alert (already done by backend)
+            alert("✅ Report verified and broadcasted as official alert!");
             setVerifications(verifications.filter((v) => v.id !== id));
-            fetchAllReports(); // Refresh history
+            setShowReportDetailsModal(false);
+            fetchPendingReports();
+            fetchAllReports();
+            fetchActiveAlerts();
         } catch (error) {
             console.error("Error verifying report:", error);
+            alert("Error verifying report");
         }
     };
 
-    const handleReject = async (id) => {
+    const handleReject = async (id, report) => {
         try {
-            await fetch(`http://localhost:5000/api/reports/${id}/status`, {
-                method: "PUT",
+            // Update report status to dismissed
+            await fetch(`${API_BASE_URL}/api/reports/${id}/reject`, {
+                method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: "dismissed" })
+                body: JSON.stringify({ 
+                    rejected_by: localStorage.getItem("userName") || "Admin",
+                    rejection_reason: "Report reviewed and determined to be inaccurate or false alarm"
+                })
             });
+
+            alert("✅ Report dismissed. Notification sent to reporter.");
             setVerifications(verifications.filter((v) => v.id !== id));
-            fetchAllReports(); // Refresh history
+            setShowReportDetailsModal(false);
+            fetchPendingReports();
+            fetchAllReports();
         } catch (error) {
-            console.error("Error dismissing report:", error);
+            console.error("Error rejecting report:", error);
+            alert("Error dismissing report");
         }
     };
 
@@ -319,6 +378,10 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     ];
 
     const [activeTab, setActiveTab] = useState("operations");
+    const [selectedReportForModal, setSelectedReportForModal] = useState(null);
+    const [showReportDetailsModal, setShowReportDetailsModal] = useState(false);
+    const [sensorDataForReport, setSensorDataForReport] = useState(null);
+    const [loadingSensorData, setLoadingSensorData] = useState(false);
 
     const renderTabs = () => (
         <View style={styles.ccTabContainer}>
@@ -451,7 +514,15 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                     ) : (
                         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
                             {verifications.map((item) => (
-                                <View key={item.id} style={{ padding: 16, backgroundColor: '#f8fafc', borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0' }}>
+                                <TouchableOpacity
+                                    key={item.id}
+                                    style={{ padding: 16, backgroundColor: '#f8fafc', borderRadius: 12, marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0' }}
+                                    onPress={() => {
+                                        setSelectedReportForModal(item);
+                                        setShowReportDetailsModal(true);
+                                        fetchSensorDataForBarangay(item.location);
+                                    }}
+                                >
                                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
                                         <Text style={{ fontSize: 12, color: '#3b82f6', fontWeight: '700' }}>{item.type.toUpperCase()}</Text>
                                         <Text style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(item.timestamp).toLocaleTimeString()}</Text>
@@ -459,23 +530,20 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                     <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>{item.location}</Text>
                                     <Text style={{ fontSize: 13, color: '#64748b', marginTop: 4, fontStyle: 'italic' }}>"{item.description}"</Text>
 
-                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
-                                        <TouchableOpacity
-                                            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, backgroundColor: '#dcfce7', borderRadius: 8 }}
-                                            onPress={() => handleVerify(item.id)}
-                                        >
-                                            <Feather name="check" size={14} color="#166534" />
-                                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#166534' }}>Verify</Text>
-                                        </TouchableOpacity>
-                                        <TouchableOpacity
-                                            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, backgroundColor: '#fee2e2', borderRadius: 8 }}
-                                            onPress={() => handleReject(item.id)}
-                                        >
-                                            <Feather name="x" size={14} color="#991b1b" />
-                                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#991b1b' }}>Dismiss</Text>
-                                        </TouchableOpacity>
+                                    {item.image_url && (
+                                        <View style={{ marginTop: 8, height: 80, backgroundColor: '#e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
+                                            <Image
+                                                source={{ uri: `${API_BASE_URL}${item.image_url}` }}
+                                                style={{ width: '100%', height: '100%', resizeMode: 'cover' }}
+                                            />
+                                        </View>
+                                    )}
+
+                                    <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                                        <Feather name="eye" size={14} color="#3b82f6" style={{ marginRight: 4 }} />
+                                        <Text style={{ fontSize: 12, color: '#3b82f6', fontWeight: '600' }}>Tap to review details</Text>
                                     </View>
-                                </View>
+                                </TouchableOpacity>
                             ))}
                         </ScrollView>
                     )}
@@ -644,26 +712,146 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
             </View>
 
             {/* Image Modal */}
+            {/* Report Details Modal */}
             <Modal
-                visible={!!selectedImage}
+                visible={showReportDetailsModal}
                 transparent={true}
-                animationType="fade"
-                onRequestClose={() => setSelectedImage(null)}
+                animationType="slide"
+                onRequestClose={() => setShowReportDetailsModal(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modal, { padding: 0, overflow: 'hidden', alignItems: 'center' }]}>
-                        <View style={{ width: '100%', flexDirection: 'row', justifyContent: 'space-between', padding: 16, backgroundColor: '#f8fafc', borderBottomWidth: 1, borderColor: '#e2e8f0' }}>
-                            <Text style={{ fontSize: 16, fontWeight: '700', color: '#1e293b' }}>Report Proof</Text>
-                            <TouchableOpacity onPress={() => setSelectedImage(null)}>
-                                <Feather name="x" size={24} color="#64748b" />
-                            </TouchableOpacity>
-                        </View>
-                        {selectedImage && (
-                            <Image
-                                source={{ uri: selectedImage }}
-                                style={{ width: '100%', height: 400, resizeMode: 'contain', backgroundColor: '#000' }}
-                            />
-                        )}
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' }}>
+                    <View style={{ backgroundColor: '#ffffff', borderTopLeftRadius: 20, borderTopRightRadius: 20, height: '90%', overflow: 'hidden' }}>
+                        <ScrollView showsVerticalScrollIndicator={false}>
+                            {selectedReportForModal && (
+                                <View style={{ paddingHorizontal: 24, paddingVertical: 20 }}>
+                                    {/* Header */}
+                                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                                        <Text style={{ fontSize: 20, fontWeight: '700', color: '#1e293b' }}>Report Details</Text>
+                                        <TouchableOpacity onPress={() => setShowReportDetailsModal(false)}>
+                                            <Feather name="x" size={24} color="#64748b" />
+                                        </TouchableOpacity>
+                                    </View>
+
+                                    {/* Original Report Section */}
+                                    <View style={{ backgroundColor: '#f8fafc', padding: 16, borderRadius: 12, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: '#3b82f6' }}>
+                                        <Text style={{ fontSize: 12, fontWeight: '700', color: '#3b82f6', marginBottom: 8, letterSpacing: 1 }}>CITIZEN REPORT</Text>
+                                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b', marginBottom: 4 }}>
+                                            {selectedReportForModal.type} - {selectedReportForModal.location}
+                                        </Text>
+                                        <Text style={{ fontSize: 13, color: '#64748b', lineHeight: 18, marginBottom: 12 }}>
+                                            {selectedReportForModal.description}
+                                        </Text>
+                                        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                                            <View>
+                                                <Text style={{ fontSize: 11, color: '#94a3b8' }}>Reporter</Text>
+                                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#1e293b' }}>
+                                                    {selectedReportForModal.reporter_name || 'Anonymous'}
+                                                </Text>
+                                            </View>
+                                            <View>
+                                                <Text style={{ fontSize: 11, color: '#94a3b8' }}>Reported Level</Text>
+                                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0f172a' }}>
+                                                    {selectedReportForModal.flood_level_reported || 'Not specified'}
+                                                </Text>
+                                            </View>
+                                            <View>
+                                                <Text style={{ fontSize: 11, color: '#94a3b8' }}>Time</Text>
+                                                <Text style={{ fontSize: 12, fontWeight: '600', color: '#1e293b' }}>
+                                                    {new Date(selectedReportForModal.timestamp).toLocaleTimeString()}
+                                                </Text>
+                                            </View>
+                                        </View>
+
+                                        {selectedReportForModal.image_url && (
+                                            <Image
+                                                source={{ uri: `${API_BASE_URL}${selectedReportForModal.image_url}` }}
+                                                style={{ width: '100%', aspectRatio: 16/9, borderRadius: 8, marginTop: 12, borderWidth: 1, borderColor: "#e2e8f0" }}
+                                                resizeMode="contain"
+                                            />
+                                        )}
+                                    </View>
+
+                                    {/* Sensor Data Section */}
+                                    {loadingSensorData ? (
+                                        <View style={{ backgroundColor: '#f8fafc', padding: 16, borderRadius: 12, marginBottom: 16, alignItems: 'center', justifyContent: 'center', height: 150 }}>
+                                            <ActivityIndicator size="large" color="#3b82f6" />
+                                            <Text style={{ marginTop: 8, color: '#64748b' }}>Loading sensor data...</Text>
+                                        </View>
+                                    ) : sensorDataForReport ? (
+                                        <View style={{ backgroundColor: '#f8fafc', padding: 16, borderRadius: 12, marginBottom: 16, borderLeftWidth: 4, borderLeftColor: '#f59e0b' }}>
+                                            <Text style={{ fontSize: 12, fontWeight: '700', color: '#f59e0b', marginBottom: 8, letterSpacing: 1 }}>SENSOR DATA</Text>
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                                                <View>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Sensor ID</Text>
+                                                    <Text style={{ fontSize: 14, fontWeight: '700', color: '#1e293b' }}>
+                                                        {sensorDataForReport.sensor_id || 'N/A'}
+                                                    </Text>
+                                                </View>
+                                                <View>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Flood Level</Text>
+                                                    <Text style={{ fontSize: 18, fontWeight: '700', color: '#1e293b' }}>
+                                                        {sensorDataForReport.flood_level}cm
+                                                    </Text>
+                                                </View>
+                                                <View>
+                                                    <Text style={{ fontSize: 11, color: '#94a3b8', marginBottom: 4 }}>Status</Text>
+                                                    <View style={{ backgroundColor: sensorDataForReport.status === 'ALARM' ? '#fee2e2' : sensorDataForReport.status === 'WARNING' ? '#fef3c7' : '#dcfce7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 }}>
+                                                        <Text style={{ fontSize: 12, fontWeight: '700', color: sensorDataForReport.status === 'ALARM' ? '#991b1b' : sensorDataForReport.status === 'WARNING' ? '#92400e' : '#166534' }}>
+                                                            {sensorDataForReport.status}
+                                                        </Text>
+                                                    </View>
+                                                </View>
+                                            </View>
+
+                                            {/* Consistency Comparison */}
+                                            {(() => {
+                                                const consistency = getSensorConsistency(selectedReportForModal.flood_level_reported, sensorDataForReport.flood_level);
+                                                return (
+                                                    <View style={{ backgroundColor: consistency.color + '15', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: consistency.color + '40' }}>
+                                                        <Text style={{ fontSize: 12, fontWeight: '700', color: consistency.color, marginBottom: 4 }}>
+                                                            {consistency.icon} {consistency.status}
+                                                        </Text>
+                                                        <Text style={{ fontSize: 12, color: '#64748b' }}>
+                                                            {consistency.status === 'MATCHING' && 'Citizen report matches sensor reading - High confidence'}
+                                                            {consistency.status === 'SIMILAR' && 'Citizen report is similar to sensor reading - Medium confidence'}
+                                                            {consistency.status === 'DIFFERENT' && 'Citizen report differs from sensor reading - Review carefully'}
+                                                        </Text>
+                                                    </View>
+                                                );
+                                            })()}
+                                        </View>
+                                    ) : (
+                                        <View style={{ backgroundColor: '#f8fafc', padding: 16, borderRadius: 12, marginBottom: 16, alignItems: 'center', justifyContent: 'center', minHeight: 100 }}>
+                                            <Feather name="alert-circle" size={32} color="#ef4444" />
+                                            <Text style={{ marginTop: 8, color: '#ef4444', fontWeight: '600' }}>No sensor data available</Text>
+                                        </View>
+                                    )}
+
+                                    {/* Action Buttons */}
+                                    <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+                                        <TouchableOpacity
+                                            style={{ flex: 1, paddingVertical: 14, backgroundColor: '#fee2e2', borderRadius: 8, alignItems: 'center' }}
+                                            onPress={() => handleReject(selectedReportForModal.id, selectedReportForModal)}
+                                        >
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                <Feather name="x-circle" size={16} color="#991b1b" />
+                                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#991b1b' }}>Dismiss Report</Text>
+                                            </View>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={{ flex: 1, paddingVertical: 14, backgroundColor: '#dcfce7', borderRadius: 8, alignItems: 'center' }}
+                                            onPress={() => handleVerify(selectedReportForModal.id, selectedReportForModal)}
+                                        >
+                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                <Feather name="check-circle" size={16} color="#166534" />
+                                                <Text style={{ fontSize: 14, fontWeight: '700', color: '#166534' }}>Verify & Broadcast</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    </View>
+                                </View>
+                            )}
+                        </ScrollView>
                     </View>
                 </View>
             </Modal>

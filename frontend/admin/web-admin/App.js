@@ -13,6 +13,7 @@ import AdminDashboard from "./src/screens/AdminDashboard";
 import SuperAdminDashboard from "./src/screens/SuperAdminDashboard";
 import SensorMapPage from "./src/screens/SensorMapPage";
 import AlertManagementPage from "./src/screens/AlertManagementPage";
+import VerifyAlertsPage from "./src/screens/VerifyAlertsPage";
 import SystemHealthPage from "./src/screens/SystemHealthPage";
 import DataReportsPage from "./src/screens/DataReportsPage";
 import UserManagementPage from "./src/screens/UserManagementPage";
@@ -97,6 +98,21 @@ export default function App() {
     }
   };
 
+  const getCurrentUser = () => {
+    if (Platform.OS === "web") {
+      try {
+        return {
+          email: localStorage.getItem("userEmail") || "",
+          username: localStorage.getItem("userName") || "",
+          role: localStorage.getItem("userRole") || ""
+        };
+      } catch (e) {
+        return { email: "", username: "", role: "" };
+      }
+    }
+    return { email: "", username: "", role: "" };
+  };
+
   if (!fontsLoaded) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -128,6 +144,8 @@ export default function App() {
         return <SensorMapPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       case "alert-management":
         return <AlertManagementPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
+      case "verify-alerts":
+        return <VerifyAlertsPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} currentUser={getCurrentUser()} />;
       case "system-health":
         return <SystemHealthPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       case "user-management":
