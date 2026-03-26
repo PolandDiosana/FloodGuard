@@ -2254,16 +2254,31 @@ const AlertsScreen = ({ navigation }) => {
   const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
   const bottomInset = Platform.OS === "android" ? 32 : 16;
 
-  useEffect(() => {
-    fetchAlerts();
-    const interval = setInterval(fetchAlerts, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
   const fetchAlerts = async () => {
     try {
-      const response = await fetch(`${API_BASE}/api/alerts/`);
+      // Get user ID to filter out dismissed alerts
+      const storedUser = await AsyncStorage.getItem("userData");
+      let url = `${API_BASE}/api/alerts/`;
+      
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        if (user?.id) {
+          url += `?user_id=${user.id}`;
+        }
+      }
+
+      console.log("Fetching alerts from:", url);
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error response:", response.status, errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
       const data = await response.json();
+      console.log("Alerts data received:", data);
+      
       const mapped = data.map(a => ({
         ...a,
         severity: a.level,
@@ -2276,6 +2291,74 @@ const AlertsScreen = ({ navigation }) => {
       console.error("Error fetching alerts:", error);
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchAlerts();
+    const interval = setInterval(fetchAlerts, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleDeleteAlert = (alertId, alertTitle) => {
+    Alert.alert(
+      "Delete Alert",
+      `Are you sure you want to delete this alert?\n\n"${alertTitle}"`,
+      [
+        {
+          text: "Cancel",
+          onPress: () => { },
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          onPress: async () => {
+            try {
+              // Get user ID from AsyncStorage
+              const storedUser = await AsyncStorage.getItem("userData");
+              if (!storedUser) {
+                Alert.alert("Error", "User not found. Please log in again.");
+                return;
+              }
+              
+              const user = JSON.parse(storedUser);
+              const userId = user?.id;
+              
+              if (!userId) {
+                Alert.alert("Error", "User ID not found.");
+                return;
+              }
+
+              const dismissUrl = `${API_BASE}/api/alerts/user/${userId}/dismiss/${alertId}`;
+              console.log("Dismissing alert at URL:", dismissUrl);
+              
+              // Call the dismiss endpoint (user-specific deletion)
+              const response = await fetch(dismissUrl, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                }
+              });
+
+              console.log("Dismiss response status:", response.status);
+              const responseData = await response.json();
+              console.log("Dismiss response data:", responseData);
+
+              if (response.ok) {
+                // Remove the alert from the local list
+                setAlerts(alerts.filter(a => a.id !== alertId));
+                Alert.alert("Success", "Alert deleted successfully");
+              } else {
+                Alert.alert("Error", responseData.error || "Failed to delete alert");
+              }
+            } catch (error) {
+              console.error("Error deleting alert:", error);
+              Alert.alert("Error", "Could not delete alert. Please try again.");
+            }
+          },
+          style: "destructive"
+        }
+      ]
+    );
   };
 
   const filteredAlerts = useMemo(() => {
@@ -2354,6 +2437,12 @@ const AlertsScreen = ({ navigation }) => {
               {statusLabel}
             </Text>
           </View>
+          <TouchableOpacity 
+            onPress={() => handleDeleteAlert(alert.id, alert.title)}
+            style={{ padding: 4 }}
+          >
+            <Feather name="trash-2" size={16} color="#e2463b" />
+          </TouchableOpacity>
         </View>
         <Text style={styles.alertDescription}>{alert.description}</Text>
         <View style={styles.alertMeta}>
@@ -2441,6 +2530,68 @@ const AlertDetailScreen = ({ route, navigation }) => {
     return null;
   }
 
+  const handleDeleteFromDetail = async () => {
+    Alert.alert(
+      "Delete Alert",
+      `Are you sure you want to delete this alert?\n\n"${alert.title}"`,
+      [
+        {
+          text: "Cancel",
+          onPress: () => { },
+          style: "cancel"
+        },
+        {
+          text: "Delete",
+          onPress: async () => {
+            try {
+              // Get user ID from AsyncStorage
+              const storedUser = await AsyncStorage.getItem("userData");
+              if (!storedUser) {
+                Alert.alert("Error", "User not found. Please log in again.");
+                return;
+              }
+              
+              const user = JSON.parse(storedUser);
+              const userId = user?.id;
+              
+              if (!userId) {
+                Alert.alert("Error", "User ID not found.");
+                return;
+              }
+
+              const dismissUrl = `${API_BASE}/api/alerts/user/${userId}/dismiss/${alert.id}`;
+              console.log("Dismissing alert from detail at URL:", dismissUrl);
+              
+              // Call the dismiss endpoint (user-specific deletion)
+              const response = await fetch(dismissUrl, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json"
+                }
+              });
+
+              console.log("Dismiss response status:", response.status);
+              const responseData = await response.json();
+              console.log("Dismiss response data:", responseData);
+
+              if (response.ok) {
+                // Navigate back to Alerts and refresh
+                navigation.navigate("Alerts");
+                Alert.alert("Success", "Alert deleted successfully");
+              } else {
+                Alert.alert("Error", responseData.error || "Failed to delete alert");
+              }
+            } catch (error) {
+              console.error("Error deleting alert:", error);
+              Alert.alert("Error", "Could not delete alert. Please try again.");
+            }
+          },
+          style: "destructive"
+        }
+      ]
+    );
+  };
+
   return (
     <SafeAreaView style={styles.dashboardSafe}>
       {Platform.OS === "android" ? (
@@ -2451,7 +2602,9 @@ const AlertDetailScreen = ({ route, navigation }) => {
           <Ionicons name="arrow-back" size={22} color="#ffffff" />
         </TouchableOpacity>
         <Text style={styles.mapHeaderTitle}>Alert Details</Text>
-        <View style={{ width: 22 }} />
+        <TouchableOpacity onPress={handleDeleteFromDetail} style={{ padding: 4 }}>
+          <Feather name="trash-2" size={20} color="#ffffff" />
+        </TouchableOpacity>
       </LinearGradient>
       <ScrollView contentContainerStyle={styles.alertDetailContent}>
         <Card style={styles.alertDetailCard}>
