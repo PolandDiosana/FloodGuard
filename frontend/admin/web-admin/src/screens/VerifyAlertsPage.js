@@ -4,6 +4,7 @@ import { Feather, MaterialCommunityIcons, Ionicons, MaterialIcons } from "@expo/
 import { styles } from "../styles/globalStyles";
 import AdminSidebar from "../components/AdminSidebar";
 import RealTimeClock from "../components/RealTimeClock";
+import { API_BASE_URL } from "../config/api";
 
 const { width } = Dimensions.get("window");
 const SIDEBAR_WIDTH = width > 1024 ? 360 : 300;
@@ -21,7 +22,7 @@ const VerifyAlertsPage = ({ onNavigate, onLogout, userRole = "lgu", currentUser 
     const [rejectReason, setRejectReason] = useState("");
     const [submittingReject, setSubmittingReject] = useState(false);
 
-    const API_BASE = "http://localhost:5000";
+    const API_BASE = API_BASE_URL;
 
     // Fetch pending reports and sensor data
     const fetchData = async () => {

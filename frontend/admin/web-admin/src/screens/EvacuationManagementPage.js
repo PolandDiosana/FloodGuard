@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { styles } from "../styles/globalStyles";
 import AdminSidebar from "../components/AdminSidebar";
 import RealTimeClock from "../components/RealTimeClock";
+import { API_BASE_URL } from "../config/api";
 
 const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const [centers, setCenters] = useState([]);
@@ -35,7 +36,7 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
 
     const fetchCenters = async () => {
         try {
-            const response = await fetch("http://localhost:5000/api/evacuation-centers/");
+            const response = await fetch(`${API_BASE_URL}/api/evacuation-centers/`);
             const data = await response.json();
             if (response.ok) {
                 setCenters(data);
@@ -162,7 +163,7 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
 
         setIsSubmitting(true);
         try {
-            const response = await fetch("http://localhost:5000/api/evacuation-centers/", {
+            const response = await fetch(`${API_BASE_URL}/api/evacuation-centers/`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -195,7 +196,7 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
         if (!editingCenter) return;
         setIsSubmitting(true);
         try {
-            const response = await fetch(`http://localhost:5000/api/evacuation-centers/${editingCenter.id}`, {
+            const response = await fetch(`${API_BASE_URL}/api/evacuation-centers/${editingCenter.id}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -224,7 +225,7 @@ const EvacuationManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) =>
     const handleDeleteCenter = async (id) => {
         if (confirm("Are you sure you want to delete this evacuation center?")) {
             try {
-                const response = await fetch(`http://localhost:5000/api/evacuation-centers/${id}`, {
+                const response = await fetch(`${API_BASE_URL}/api/evacuation-centers/${id}`, {
                     method: "DELETE"
                 });
                 if (response.ok) {

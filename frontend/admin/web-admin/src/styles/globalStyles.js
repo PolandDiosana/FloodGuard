@@ -2917,22 +2917,24 @@ export const styles = StyleSheet.create({
     ccAlertActionRow: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
-        gap: 12,
+        gap: 8,
         marginTop: 12,
         paddingTop: 12,
         borderTopWidth: 1,
         borderTopColor: '#f1f5f9',
+        flexWrap: 'wrap',
     },
     ccActionButton: {
         flexDirection: 'row',
         alignItems: 'center',
         paddingVertical: 8,
-        paddingHorizontal: 16,
+        paddingHorizontal: 12,
         borderRadius: 10,
-        gap: 8,
+        gap: 6,
+        minHeight: 36,
     },
     ccActionButtonText: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
     },
 

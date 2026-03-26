@@ -5,6 +5,7 @@ import { styles } from "../styles/globalStyles";
 import AdminSidebar from "../components/AdminSidebar";
 import RealTimeClock from "../components/RealTimeClock";
 import { MABOLO_REGION } from "../config/constants";
+import { API_BASE_URL } from "../config/api";
 
 const SensorMapPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const [selectedSensor, setSelectedSensor] = useState(null);
@@ -12,7 +13,7 @@ const SensorMapPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const [loading, setLoading] = useState(true);
 
     // API base URL
-    const API_BASE = "http://localhost:5000";
+    const API_BASE = API_BASE_URL;
 
     // Fetch sensor data from backend
     const fetchSensorData = async () => {

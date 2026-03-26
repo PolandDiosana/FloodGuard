@@ -24,6 +24,11 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const [loadingActiveAlerts, setLoadingActiveAlerts] = useState(true);
     const [escalatingId, setEscalatingId] = useState(null);
     const [resolvingId, setResolvingId] = useState(null);
+    const [deletingId, setDeletingId] = useState(null);
+    
+    // Delete Confirmation Modal State
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [alertToDelete, setAlertToDelete] = useState(null);
 
     // Broadcast Card Flip State
     const [isBroadcastFlipped, setIsBroadcastFlipped] = useState(false);
@@ -168,6 +173,53 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
             alert('Network error while resolving.');
         } finally {
             setResolvingId(null);
+        }
+    };
+
+    const handleDeleteAlert = async (alertId, alertTitle) => {
+        console.log("Delete button clicked for alert:", alertId, alertTitle);
+        setAlertToDelete({ id: alertId, title: alertTitle });
+        setShowDeleteConfirm(true);
+    };
+
+    const confirmDeleteAlert = async () => {
+        if (!alertToDelete) return;
+        
+        console.log("Delete confirmed for alert:", alertToDelete.id);
+        setDeletingId(alertToDelete.id);
+        setShowDeleteConfirm(false);
+        
+        try {
+            const deleteUrl = `${API_BASE_URL}/api/alerts/${alertToDelete.id}`;
+            console.log("Sending DELETE request to:", deleteUrl);
+            
+            const response = await fetch(deleteUrl, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            console.log("DELETE response status:", response.status);
+            const responseData = await response.json();
+            console.log("DELETE response data:", responseData);
+            
+            if (response.ok) {
+                console.log("Alert deleted successfully, refreshing data...");
+                alert('✅ Alert deleted successfully.');
+                fetchActiveAlerts();
+                fetchAlertHistory();
+            } else {
+                const errorMessage = responseData.error || 'Failed to delete alert. Status: ' + response.status;
+                console.error("Delete failed:", errorMessage);
+                alert('❌ ' + errorMessage);
+            }
+        } catch (err) {
+            console.error('Error deleting alert:', err);
+            alert('❌ Network error while deleting: ' + err.message);
+        } finally {
+            setDeletingId(null);
+            setAlertToDelete(null);
         }
     };
 
@@ -484,6 +536,14 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                                     <Text style={[styles.ccActionButtonText, { color: '#ef4444' }]}>Escalate</Text>
                                                 </TouchableOpacity>
                                             )}
+
+                                            <TouchableOpacity
+                                                style={[styles.ccActionButton, { backgroundColor: '#fee2e2' }]}
+                                                onPress={() => handleDeleteAlert(a.id, a.title)}
+                                            >
+                                                <Feather name="trash-2" size={16} color="#dc2626" />
+                                                <Text style={[styles.ccActionButtonText, { color: '#dc2626' }]}>Delete</Text>
+                                            </TouchableOpacity>
                                         </View>
                                     </View>
                                 );
@@ -638,15 +698,27 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
                     <ScrollView style={{ marginTop: 20, flex: 1 }} showsVerticalScrollIndicator={false}>
                         {alertHistory.map(item => (
-                            <View key={item.id} style={{ paddingBottom: 16, marginBottom: 16, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                    <Text style={{ fontSize: 11, fontWeight: '800', color: item.level === 'warning' ? '#ef4444' : '#64748b' }}>
-                                        {item.level.toUpperCase()}
-                                    </Text>
-                                    <Text style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(item.timestamp).toLocaleDateString()}</Text>
+                            <View key={item.id} style={{ paddingBottom: 16, marginBottom: 16, paddingRight: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                                    <View style={{ flex: 1 }}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                                            <Text style={{ fontSize: 11, fontWeight: '800', color: item.level === 'warning' ? '#ef4444' : '#64748b' }}>
+                                                {item.level.toUpperCase()}
+                                            </Text>
+                                            <Text style={{ fontSize: 11, color: '#94a3b8' }}>{new Date(item.timestamp).toLocaleDateString()}</Text>
+                                        </View>
+                                        <Text style={{ fontSize: 14, fontWeight: '600', color: '#1e293b' }}>{item.title}</Text>
+                                        <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }} numberOfLines={2}>{item.description}</Text>
+                                    </View>
                                 </View>
-                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#1e293b' }}>{item.title}</Text>
-                                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }} numberOfLines={2}>{item.description}</Text>
+                                
+                                <TouchableOpacity
+                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingHorizontal: 8, backgroundColor: '#fee2e2', borderRadius: 6, alignSelf: 'flex-start', marginTop: 8 }}
+                                    onPress={() => handleDeleteAlert(item.id, item.title)}
+                                >
+                                    <Feather name="trash-2" size={14} color="#dc2626" />
+                                    <Text style={{ fontSize: 11, fontWeight: '600', color: '#dc2626' }}>Delete</Text>
+                                </TouchableOpacity>
                             </View>
                         ))}
                     </ScrollView>
@@ -852,6 +924,40 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                 </View>
                             )}
                         </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Delete Confirmation Modal */}
+            <Modal
+                visible={showDeleteConfirm}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setShowDeleteConfirm(false)}
+            >
+                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+                    <View style={{ backgroundColor: '#ffffff', borderRadius: 16, padding: 24, maxWidth: 400, width: '90%', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12 }}>
+                        <Text style={{ fontSize: 18, fontWeight: '700', color: '#1e293b', marginBottom: 12 }}>Delete Alert</Text>
+                        <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 24 }}>
+                            Are you sure you want to delete this alert?{'\n\n'}
+                            <Text style={{ fontWeight: '600', color: '#1e293b' }}>{alertToDelete?.title}</Text>
+                        </Text>
+                        
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            <TouchableOpacity
+                                style={{ flex: 1, paddingVertical: 12, backgroundColor: '#f1f5f9', borderRadius: 8, alignItems: 'center' }}
+                                onPress={() => setShowDeleteConfirm(false)}
+                            >
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#64748b' }}>Cancel</Text>
+                            </TouchableOpacity>
+                            
+                            <TouchableOpacity
+                                style={{ flex: 1, paddingVertical: 12, backgroundColor: '#dc2626', borderRadius: 8, alignItems: 'center' }}
+                                onPress={() => confirmDeleteAlert()}
+                            >
+                                <Text style={{ fontSize: 14, fontWeight: '600', color: '#ffffff' }}>Delete</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>

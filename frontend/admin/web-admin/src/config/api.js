@@ -1,1 +1,1 @@
-export const API_BASE_URL = "http://127.0.0.1:5000"; // Local backend for development
+export const API_BASE_URL = "http://172.17.69.238:5000"; // Backend server

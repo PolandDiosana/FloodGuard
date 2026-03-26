@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Image, Platform, TextInput, M
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { styles } from "../styles/globalStyles";
+import { API_BASE_URL } from "../config/api";
 
 const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => {
     const isSuperAdmin = variant === "superadmin";
@@ -77,11 +78,11 @@ const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => 
             const userType = isSuperAdmin ? 'admin' : 'user';
 
             if (userId) {
-                fetch(`http://localhost:5000/api/users/${userId}?type=${userType}`)
+                fetch(`${API_BASE_URL}/api/users/${userId}?type=${userType}`)
                     .then(res => res.json())
                     .then(data => {
                         if (data.avatar_url) {
-                            setAvatarUrl(`http://localhost:5000${data.avatar_url}`);
+                            setAvatarUrl(`${API_BASE_URL}${data.avatar_url}`);
                         }
                         // Initialize form data
                         setProfileForm({
@@ -107,14 +108,14 @@ const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => 
                 const formData = new FormData();
                 formData.append("image", selectedAvatarFile);
 
-                const avatarRes = await fetch(`http://localhost:5000/api/users/${userId}/avatar?type=${userType}`, {
+                const avatarRes = await fetch(`${API_BASE_URL}/api/users/${userId}/avatar?type=${userType}`, {
                     method: "POST",
                     body: formData,
                 });
 
                 if (avatarRes.ok) {
                     const avatarData = await avatarRes.json();
-                    setAvatarUrl(`http://localhost:5000${avatarData.avatar_url}`);
+                    setAvatarUrl(`${API_BASE_URL}${avatarData.avatar_url}`);
                 } else {
                     const errData = await avatarRes.json();
                     console.error("Avatar upload failed:", errData);
@@ -123,7 +124,7 @@ const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => 
             }
 
             // 2. Update Profile Details
-            const response = await fetch(`http://localhost:5000/api/users/${userId}?type=${userType}`, {
+            const response = await fetch(`${API_BASE_URL}/api/users/${userId}?type=${userType}`, {
                 method: "PUT",
                 headers: {
                     "Content-Type": "application/json",
