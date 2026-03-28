@@ -74,7 +74,7 @@ const ACCOUNT_IMAGE = require("./assets/flood.png");
 const LOCATION_IMAGE = require("./assets/flood4.jpg");
 const NOTIFY_IMAGE = require("./assets/flood5.jpg");
 const LOGO = require("./assets/logo.png");
-const API_BASE = "http://172.17.69.238:5000";
+const API_BASE = "http://10.236.107.238:5000";
 
 const safeGoBack = (navigation, fallback) => {
   if (navigation?.canGoBack?.()) {
@@ -2445,6 +2445,14 @@ const AlertsScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
         <Text style={styles.alertDescription}>{alert.description}</Text>
+        {(alert.recommended_action || alert.actions) ? (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 6, gap: 6 }}>
+            <Ionicons name="checkmark-circle" size={14} color="#16a34a" style={{ marginTop: 1 }} />
+            <Text style={[styles.alertMetaText, { flex: 1, color: '#16a34a', fontWeight: '600' }]} numberOfLines={2}>
+              {alert.recommended_action || alert.actions}
+            </Text>
+          </View>
+        ) : null}
         <View style={styles.alertMeta}>
           <Text style={styles.alertMetaText}>{alert.location}</Text>
           <Text style={styles.alertMetaText}>{alert.timestamp}</Text>
@@ -2617,7 +2625,9 @@ const AlertDetailScreen = ({ route, navigation }) => {
         </Card>
         <Card style={styles.alertDetailCard}>
           <Text style={styles.alertDetailLabel}>Recommended Actions</Text>
-          <Text style={styles.alertDetailDescription}>{alert.actions}</Text>
+          <Text style={styles.alertDetailDescription}>
+            {alert.recommended_action || alert.actions || "No specific action recommended. Stay tuned for updates from local officials."}
+          </Text>
         </Card>
         <Card style={styles.alertDetailCard}>
           <Text style={styles.alertDetailLabel}>Status</Text>

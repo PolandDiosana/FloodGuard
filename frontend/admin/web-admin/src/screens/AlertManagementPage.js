@@ -11,6 +11,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const [selectedBarangays, setSelectedBarangays] = useState([]);
     const [alertMessage, setAlertMessage] = useState("");
     const [alertTitle, setAlertTitle] = useState("");
+    const [recommendedAction, setRecommendedAction] = useState("");
     const [verifications, setVerifications] = useState([]);
     const [allReports, setAllReports] = useState([]);
     const [alertHistory, setAlertHistory] = useState([]);
@@ -347,7 +348,8 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                     title: alertTitle,
                     description: alertMessage,
                     level: alertType,
-                    barangay: barangayString
+                    barangay: barangayString,
+                    recommended_action: recommendedAction
                 }),
             });
 
@@ -355,6 +357,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                 alert("Alert broadcasted successfully!");
                 setAlertMessage("");
                 setAlertTitle("");
+                setRecommendedAction("");
                 setSelectedBarangays([]);
                 fetchAlertHistory(); // Refresh history list
             } else {
@@ -657,6 +660,17 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                             multiline
                             value={alertMessage}
                             onChangeText={setAlertMessage}
+                        />
+                    </View>
+
+                    <View style={{ marginBottom: 20 }}>
+                        <Text style={styles.alertInputLabel}>Recommended Action</Text>
+                        <TextInput
+                            style={[styles.alertMessageInput, { backgroundColor: '#f8fafc', height: 90 }]}
+                            placeholder="e.g. Evacuate to the nearest evacuation center. Avoid flood-prone roads..."
+                            multiline
+                            value={recommendedAction}
+                            onChangeText={setRecommendedAction}
                         />
                     </View>
 

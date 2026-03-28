@@ -107,6 +107,7 @@ def create_alert():
     description = data.get('description')
     level = data.get('level') # advisory, warning, critical
     barangay = data.get('barangay', 'All')
+    recommended_action = data.get('recommended_action', '')
     
     if not title or not level:
         return jsonify({"error": "Title and level are required"}), 400
@@ -115,9 +116,9 @@ def create_alert():
     cursor = db.cursor()
     
     cursor.execute("""
-        INSERT INTO alerts (title, description, level, barangay, status, timestamp)
-        VALUES (%s, %s, %s, %s, 'active', NOW())
-    """, (title, description, level, barangay))
+        INSERT INTO alerts (title, description, level, barangay, recommended_action, status, timestamp)
+        VALUES (%s, %s, %s, %s, %s, 'active', NOW())
+    """, (title, description, level, barangay, recommended_action))
     
     db.commit()
     alert_id = cursor.lastrowid

@@ -33,8 +33,8 @@ const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => 
         ? [
             { id: "overview", label: "Overview", icon: "grid" },
             { id: "sensor-map", label: "Sensor Map", icon: "map" },
+            { id: "sensor-registration", label: "Manage Sensors", icon: "cpu" },
             { id: "alert-management", label: "Alert Management", icon: "bell" },
-            { id: "system-health", label: "System Health", icon: "activity" },
             { id: "user-management", label: "User Management", icon: "users" },
             { id: "data-reports", label: "Data & Reports", icon: "file-text" },
             { id: "threshold-config", label: "Threshold Config", icon: "settings" },
@@ -42,9 +42,9 @@ const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => 
         : [
             { id: "overview", label: "Overview", icon: "grid" },
             { id: "sensor-map", label: "Sensor Map", icon: "map" },
+            { id: "sensor-registration", label: "Manage Sensors", icon: "cpu" },
             { id: "alert-management", label: "Alert Management", icon: "bell" },
             { id: "evacuation-management", label: "Evacuation Centers", icon: "home" },
-            { id: "system-health", label: "System Health", icon: "activity" },
             { id: "data-reports", label: "Data & Reports", icon: "file-text" },
         ];
 

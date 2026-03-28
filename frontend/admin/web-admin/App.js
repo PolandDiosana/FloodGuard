@@ -19,6 +19,7 @@ import DataReportsPage from "./src/screens/DataReportsPage";
 import UserManagementPage from "./src/screens/UserManagementPage";
 import EvacuationManagementPage from "./src/screens/EvacuationManagementPage";
 import ThresholdConfigPage from "./src/screens/ThresholdConfigPage";
+import ManageSensorsPage from "./src/screens/SensorRegistrationPage";
 import LoadingOverlay from "./src/components/LoadingOverlay";
 
 export default function App() {
@@ -142,6 +143,8 @@ export default function App() {
         );
       case "sensor-map":
         return <SensorMapPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
+      case "sensor-registration":
+        return <ManageSensorsPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       case "alert-management":
         return <AlertManagementPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       case "verify-alerts":

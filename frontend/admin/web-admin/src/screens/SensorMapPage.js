@@ -18,33 +18,31 @@ const SensorMapPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     // Fetch sensor data from backend
     const fetchSensorData = async () => {
         try {
-            const response = await fetch(`${API_BASE}/api/iot/latest`);
+            const response = await fetch(`${API_BASE}/api/iot/sensors/status-all`);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const data = await response.json();
 
             // Transform the data to match our expected format
-            const transformedData = [{
-                sensor_id: data.sensor_id || "sensor-1",
-                barangay: "Barangay Mabolo",
-                latitude: data.latitude || MABOLO_REGION.latitude,
-                longitude: data.longitude || MABOLO_REGION.longitude,
-                status: data.status?.toLowerCase() || "unknown",
-                risk_level: data.status?.toLowerCase() === "normal" ? "low" :
-                           data.status?.toLowerCase() === "warning" ? "elevated" : "high",
-                flood_level: data.flood_level || 0,
-                raw_distance: data.raw_distance || 0,
-                last_updated: data.created_at ? new Date(data.created_at).toLocaleString() : "Just now",
-                maps_url: data.maps_url,
-                is_offline: data.is_offline || false
-            }];
+            const transformedData = data.map(s => ({
+                sensor_id: s.id,
+                name: s.name,
+                barangay: s.barangay || "Active Area",
+                latitude: s.lat || MABOLO_REGION.latitude,
+                longitude: s.lng || MABOLO_REGION.longitude,
+                status: s.reading_status?.toLowerCase() || s.status.toLowerCase(),
+                risk_level: (s.reading_status || "").toLowerCase() === "normal" ? "low" :
+                           (s.reading_status || "").toLowerCase() === "warning" ? "elevated" : "high",
+                flood_level: s.flood_level || 0,
+                last_updated: s.last_seen ? new Date(s.last_seen).toLocaleString() : "No data",
+                is_offline: s.is_offline
+            }));
 
             setSensorData(transformedData);
             setLoading(false);
         } catch (error) {
             console.error("Failed to fetch sensor data:", error);
-            // Set loading to false even on error
             setLoading(false);
         }
     };
