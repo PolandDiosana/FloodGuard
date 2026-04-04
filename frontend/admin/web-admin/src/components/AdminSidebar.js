@@ -32,8 +32,7 @@ const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => 
     const navItems = isSuperAdmin
         ? [
             { id: "overview", label: "Overview", icon: "grid" },
-            { id: "sensor-map", label: "Sensor Map", icon: "map" },
-            { id: "sensor-registration", label: "Manage Sensors", icon: "cpu" },
+            { id: "sensor-registration", label: "Sensor Management", icon: "cpu" },
             { id: "alert-management", label: "Alert Management", icon: "bell" },
             { id: "user-management", label: "User Management", icon: "users" },
             { id: "data-reports", label: "Data & Reports", icon: "file-text" },
@@ -41,8 +40,7 @@ const AdminSidebar = ({ activePage, onNavigate, onLogout, variant = "lgu" }) => 
         ]
         : [
             { id: "overview", label: "Overview", icon: "grid" },
-            { id: "sensor-map", label: "Sensor Map", icon: "map" },
-            { id: "sensor-registration", label: "Manage Sensors", icon: "cpu" },
+            { id: "sensor-registration", label: "Sensor Management", icon: "cpu" },
             { id: "alert-management", label: "Alert Management", icon: "bell" },
             { id: "evacuation-management", label: "Evacuation Centers", icon: "home" },
             { id: "data-reports", label: "Data & Reports", icon: "file-text" },

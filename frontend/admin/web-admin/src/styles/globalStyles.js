@@ -521,9 +521,12 @@ export const styles = StyleSheet.create({
     },
     sensorInfoClose: {
         position: "absolute",
-        top: 8,
-        right: 8,
-        padding: 4,
+        top: 12,
+        right: 12,
+        padding: 8,
+        zIndex: 100,
+        backgroundColor: "rgba(241, 245, 249, 0.8)",
+        borderRadius: 20,
     },
     sensorListPanel: {
         flex: 1,
@@ -2841,13 +2844,16 @@ export const styles = StyleSheet.create({
     ccOpsGrid: {
         flexDirection: 'row',
         gap: 20,
-        height: 700,
+        flex: 1,
+        overflow: 'hidden',
     },
     ccOpsLeft: {
         flex: 1.5,
+        overflow: 'hidden',
     },
     ccOpsRight: {
         flex: 1,
+        overflow: 'hidden',
     },
     ccPanel: {
         backgroundColor: '#ffffff',
@@ -2942,13 +2948,16 @@ export const styles = StyleSheet.create({
     ccBroadcastGrid: {
         flexDirection: 'row',
         gap: 24,
-        height: 700,
+        flex: 1,
+        overflow: 'hidden',
     },
     ccFormSection: {
         flex: 1,
+        overflow: 'hidden',
     },
     ccHistorySection: {
         width: 380,
+        overflow: 'hidden',
     },
     ccBrgyGrid: {
         flexDirection: 'row',

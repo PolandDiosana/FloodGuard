@@ -13,8 +13,9 @@ def login():
     data = request.get_json() or {}
     username = (data.get('username') or '').strip()
     password = (data.get('password') or '').strip()
+    required_role = data.get('required_role') # 'admin' or 'lgu' from web dashboard
 
-    print(f"[DEBUG LOGIN] Received login attempt user={username} pass_len={len(password)}")
+    print(f"[DEBUG LOGIN] Received login attempt user={username} req_role={required_role}")
 
     if not username or not password:
         print("[DEBUG LOGIN] Missing username or password")
@@ -30,6 +31,19 @@ def login():
         print(f"[DEBUG LOGIN] Password check: {ok}")
 
     if user and user.check_password(password):
+        # --- Strict Role Validation ---
+        if required_role == 'admin':
+            if user.role != 'super_admin':
+                 return jsonify({"error": "Unauthorized: Admin access required."}), 403
+        elif required_role == 'lgu':
+            if user.role != 'lgu_admin':
+                 return jsonify({"error": "Unauthorized: LGU Moderator access required."}), 403
+        elif not required_role:
+             # Default mobile app behavior (usually allow 'user')
+             if user.role not in ['user', 'lgu_admin', 'super_admin']:
+                  return jsonify({"error": "Unauthorized account."}), 403
+        # -------------------------------
+        
         token = jwt.encode({
             'user_id': user.id,
             'role': user.role,

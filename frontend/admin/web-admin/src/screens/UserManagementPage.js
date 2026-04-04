@@ -38,10 +38,10 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                 // Map backend roles to frontend display roles
                 const mappedUsers = data.users.map(u => ({
                     ...u,
-                    role: u.role === 'lgu_admin' ? 'LGU Moderator' :
-                        u.role === 'super_admin' ? 'Super Admin' :
-                            u.role === 'user' ? 'User' : u.role,
-                    status: u.status ? u.status.charAt(0).toUpperCase() + u.status.slice(1) : 'Active'
+                    role: (u.role === 'lgu_admin' || u.role === 'lgu') ? 'LGU Moderator' :
+                        (u.role === 'super_admin' || u.role === 'admin') ? 'Super Admin' :
+                            (u.role === 'user') ? 'User' : u.role,
+                    status: (u.status || 'Active').charAt(0).toUpperCase() + (u.status || 'Active').slice(1)
                 }));
                 setUsers(mappedUsers);
                 setStats(data.stats);
@@ -71,8 +71,15 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
     };
 
     const filteredUsers = users.filter(user => {
-        const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.toLowerCase());
+        const name = (user.name || "").toLowerCase();
+        const email = (user.email || "").toLowerCase();
+        const location = (user.location || "").toLowerCase();
+        const search = searchQuery.toLowerCase();
+
+        const matchesSearch = name.includes(search) ||
+            email.includes(search) ||
+            location.includes(search);
+            
         const matchesRole = roleFilter === "All Roles" || user.role === roleFilter;
         const matchesStatus = statusFilter === "All Status" || user.status === statusFilter;
         return matchesSearch && matchesRole && matchesStatus;
@@ -85,7 +92,9 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
     const [lguForm, setLguForm] = useState({
         full_name: "",
         email: "",
+        role: "lgu_admin", // Default for new accounts
         barangay: "",
+        password: ""
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -166,28 +175,29 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
         setShowAddLGUModal(true);
     };
 
-    const handleCreateLGU = async () => {
-        if (!lguForm.full_name || !lguForm.email || !lguForm.barangay) {
-            alert("Please fill in all required fields (Name, Email, Barangay)");
+    const handleCreateUser = async () => {
+        if (!lguForm.email || (!lguForm.password && lguForm.role !== 'lgu_admin')) {
+            alert("Please fill in the required fields.");
             return;
         }
 
-        // Auto-generate password: "FloodGuard" + 4 random digits
-        const generatedPassword = "FloodGuard" + Math.floor(1000 + Math.random() * 9000);
+        // Auto-generate password if empty (like for LGU creation)
+        let finalPassword = lguForm.password;
+        if (!finalPassword) {
+            finalPassword = "FloodGuard" + Math.floor(1000 + Math.random() * 9000);
+        }
 
         const payload = {
             ...lguForm,
-            password: generatedPassword,
+            password: finalPassword,
             phone: "" // Optional
         };
 
         setIsSubmitting(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/admin/create-lgu`, {
+            const response = await fetch(`${API_BASE_URL}/api/admin/create-user`, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
 
@@ -197,13 +207,13 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                 setCreatedUserEmail(lguForm.email);
                 setShowAddLGUModal(false);
                 setShowSuccessModal(true);
-                setLguForm({ full_name: "", email: "", barangay: "" });
-                fetchUsers(); // Refresh user list
+                setLguForm({ full_name: "", email: "", role: "lgu_admin", barangay: "", password: "" });
+                fetchUsers();
             } else {
                 alert("Error: " + (data.error || "Failed to create account"));
             }
         } catch (error) {
-            alert("Network Error: Could not connect to server");
+            alert("Network error creating user");
         } finally {
             setIsSubmitting(false);
         }
@@ -236,52 +246,33 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                     showsVerticalScrollIndicator={false}
                 >
                     {/* Stats Cards */}
-                    {/* Stats Cards */}
-                    <View style={styles.userStatsRow}>
-                        <TouchableOpacity style={styles.userStatsCard} onPress={() => { setRoleFilter("All Roles"); setStatusFilter("All Status"); }}>
-                            <View>
-                                <View style={[styles.userStatsIcon, { backgroundColor: "#eff6ff" }]}>
-                                    <Feather name="users" size={24} color="#2563eb" />
+                    <View style={pg.statsRow}>
+                        {[
+                            { icon: "users", label: "Total Users", value: stats.total_users, color: "#2563eb", bg: "#eff6ff", filter: { r: "All Roles", s: "All Status" } },
+                            { icon: "user-check", label: "Active Users", value: stats.active_users, color: "#16a34a", bg: "#dcfce7", filter: { r: "All Roles", s: "Active" } },
+                            { icon: "shield", label: "LGU Moderators", value: stats.lgu_moderators, color: "#7c3aed", bg: "#f3e8ff", filter: { r: "LGU Moderator", s: "All Status" } },
+                            { icon: "lock", label: "Super Admins", value: stats.super_admins, color: "#dc2626", bg: "#fee2e2", filter: { r: "Super Admin", s: "All Status" } },
+                        ].map((card) => (
+                            <TouchableOpacity 
+                                key={card.label} 
+                                style={pg.statsCard} 
+                                onPress={() => { setRoleFilter(card.filter.r); setStatusFilter(card.filter.s); }}
+                            >
+                                <View style={[pg.statsIcon, { backgroundColor: card.bg }]}>
+                                    <Feather name={card.icon} size={20} color={card.color} />
                                 </View>
-                                <Text style={styles.userStatsValue}>{stats.total_users}</Text>
-                                <Text style={styles.userStatsLabel}>Total Users</Text>
-                            </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.userStatsCard} onPress={() => { setStatusFilter("Active"); setRoleFilter("All Roles"); }}>
-                            <View>
-                                <View style={[styles.userStatsIcon, { backgroundColor: "#dcfce7" }]}>
-                                    <Feather name="user-check" size={24} color="#16a34a" />
-                                </View>
-                                <Text style={styles.userStatsValue}>{stats.active_users}</Text>
-                                <Text style={styles.userStatsLabel}>Active Users</Text>
-                            </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.userStatsCard} onPress={() => { setRoleFilter("LGU Moderator"); setStatusFilter("All Status"); }}>
-                            <View>
-                                <View style={[styles.userStatsIcon, { backgroundColor: "#f3e8ff" }]}>
-                                    <Feather name="shield" size={24} color="#7c3aed" />
-                                </View>
-                                <Text style={styles.userStatsValue}>{stats.lgu_moderators}</Text>
-                                <Text style={styles.userStatsLabel}>LGU Moderators</Text>
-                            </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.userStatsCard} onPress={() => { setRoleFilter("Super Admin"); setStatusFilter("All Status"); }}>
-                            <View>
-                                <View style={[styles.userStatsIcon, { backgroundColor: "#fee2e2" }]}>
-                                    <Feather name="lock" size={24} color="#dc2626" />
-                                </View>
-                                <Text style={styles.userStatsValue}>{stats.super_admins}</Text>
-                                <Text style={styles.userStatsLabel}>Super Admins</Text>
-                            </View>
-                        </TouchableOpacity>
+                                <Text style={pg.statsValue}>{card.value}</Text>
+                                <Text style={pg.statsLabel}>{card.label}</Text>
+                            </TouchableOpacity>
+                        ))}
                     </View>
 
                     {/* Filter Bar */}
-                    <View style={styles.filterBar}>
-                        <View style={styles.searchContainer}>
+                    <View style={[pg.toolbar, { zIndex: 100, overflow: 'visible' }]}>
+                        <View style={pg.searchBox}>
                             <Feather name="search" size={18} color="#94a3b8" style={{ marginRight: 8 }} />
                             <TextInput
-                                style={styles.searchInput}
+                                style={pg.searchInput}
                                 placeholder="Search users by name, email, or location..."
                                 placeholderTextColor="#94a3b8"
                                 value={searchQuery}
@@ -289,32 +280,32 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                             />
                         </View>
 
-                        <View style={styles.filterGroup}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 12, zIndex: 110, overflow: 'visible' }}>
                             {/* Role Filter */}
-                            <View style={{ zIndex: 100 }}>
+                            <View style={{ zIndex: 120 }}>
                                 <TouchableOpacity 
-                                    style={styles.filterSelect} 
+                                    style={pg.filterSelect} 
                                     onPress={() => {
                                         setShowRoleDropdown(!showRoleDropdown);
                                         setShowStatusDropdown(false);
                                     }}
                                 >
-                                    <Text style={styles.filterSelectText}>{roleFilter}</Text>
+                                    <Text style={pg.filterSelectText}>{roleFilter}</Text>
                                     <Feather name={showRoleDropdown ? "chevron-up" : "chevron-down"} size={16} color="#475569" />
                                 </TouchableOpacity>
                                 
                                 {showRoleDropdown && (
-                                    <View style={styles.ccFilterDropdown}>
+                                    <View style={pg.dropdown}>
                                         {["All Roles", "Super Admin", "LGU Moderator", "User"].map((role) => (
                                             <TouchableOpacity 
                                                 key={role} 
-                                                style={styles.ccFilterItem}
+                                                style={pg.dropdownItem}
                                                 onPress={() => {
                                                     setRoleFilter(role);
                                                     setShowRoleDropdown(false);
                                                 }}
                                             >
-                                                <Text style={[styles.ccFilterItemText, roleFilter === role && { fontWeight: '700', color: '#2563eb' }]}>{role}</Text>
+                                                <Text style={[pg.dropdownItemText, roleFilter === role && { fontWeight: '700', color: '#2563eb' }]}>{role}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
@@ -322,45 +313,45 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                             </View>
 
                             {/* Status Filter */}
-                            <View style={{ zIndex: 100 }}>
+                            <View style={{ zIndex: 120 }}>
                                 <TouchableOpacity 
-                                    style={styles.filterSelect}
+                                    style={pg.filterSelect}
                                     onPress={() => {
                                         setShowStatusDropdown(!showStatusDropdown);
                                         setShowRoleDropdown(false);
                                     }}
                                 >
-                                    <Text style={styles.filterSelectText}>{statusFilter}</Text>
+                                    <Text style={pg.filterSelectText}>{statusFilter}</Text>
                                     <Feather name={showStatusDropdown ? "chevron-up" : "chevron-down"} size={16} color="#475569" />
                                 </TouchableOpacity>
 
                                 {showStatusDropdown && (
-                                    <View style={styles.ccFilterDropdown}>
+                                    <View style={pg.dropdown}>
                                         {["All Status", "Active", "Inactive"].map((status) => (
                                             <TouchableOpacity 
                                                 key={status} 
-                                                style={styles.ccFilterItem}
+                                                style={pg.dropdownItem}
                                                 onPress={() => {
                                                     setStatusFilter(status);
                                                     setShowStatusDropdown(false);
                                                 }}
                                             >
-                                                <Text style={[styles.ccFilterItemText, statusFilter === status && { fontWeight: '700', color: '#2563eb' }]}>{status}</Text>
+                                                <Text style={[pg.dropdownItemText, statusFilter === status && { fontWeight: '700', color: '#2563eb' }]}>{status}</Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
                                 )}
                             </View>
 
-                            <TouchableOpacity style={styles.addUserButton} onPress={handleAddUserClick}>
+                            <TouchableOpacity style={pg.addUserBtn} onPress={handleAddUserClick}>
                                 <Feather name="plus" size={18} color="#ffffff" />
-                                <Text style={styles.addUserButtonText}>Add LGU</Text>
+                                <Text style={pg.addUserBtnText}>Add User</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
 
-                    {/* User Table */}
-                    <View style={styles.userTableContainer}>
+                    {/* User Table Card */}
+                    <View style={[styles.userTableCard, { zIndex: 1 }]}>
                         <View style={styles.userTableHeader}>
                             <Text style={[styles.userTableHeaderCell, styles.userColUser]}>User</Text>
                             <Text style={[styles.userTableHeaderCell, styles.userColRole]}>Role</Text>
@@ -499,19 +490,32 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                                     />
                                 </View>
 
-                                {/* Role & Location Row */}
-                                <View style={{ flexDirection: "row", gap: 16, zIndex: 3000 }}>
-                                    {/* Role (Fixed) */}
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 13, fontWeight: "600", color: "#334155", marginBottom: 8 }}>Role</Text>
-                                        <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 44, backgroundColor: "#f8fafc" }}>
-                                            <Feather name="shield" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
-                                            <Text style={{ fontSize: 14, color: "#64748b" }}>LGU Moderator</Text>
-                                        </View>
-                                    </View>
+                                {/* Role Selection */}
+                                <Text style={{ fontSize: 13, fontWeight: "600", color: "#334155", marginBottom: 8 }}>Account Role</Text>
+                                <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+                                    <TouchableOpacity
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 10, borderWidth: 1, borderColor: lguForm.role === 'user' ? "#2563eb" : "#e2e8f0", borderRadius: 8, backgroundColor: lguForm.role === 'user' ? "#eff6ff" : "#fff" }}
+                                        onPress={() => setLguForm({ ...lguForm, role: 'user' })}
+                                    >
+                                        <Text style={{ fontSize: 13, color: lguForm.role === 'user' ? "#1e293b" : "#64748b", fontWeight: lguForm.role === 'user' ? "600" : "400" }}>User</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 10, borderWidth: 1, borderColor: lguForm.role === 'lgu_admin' ? "#7c3aed" : "#e2e8f0", borderRadius: 8, backgroundColor: lguForm.role === 'lgu_admin' ? "#f3e8ff" : "#fff" }}
+                                        onPress={() => setLguForm({ ...lguForm, role: 'lgu_admin' })}
+                                    >
+                                        <Text style={{ fontSize: 13, color: lguForm.role === 'lgu_admin' ? "#1e293b" : "#64748b", fontWeight: lguForm.role === 'lgu_admin' ? "600" : "400" }}>LGU</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={{ flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", padding: 10, borderWidth: 1, borderColor: lguForm.role === 'super_admin' ? "#dc2626" : "#e2e8f0", borderRadius: 8, backgroundColor: lguForm.role === 'super_admin' ? "#fee2e2" : "#fff" }}
+                                        onPress={() => setLguForm({ ...lguForm, role: 'super_admin' })}
+                                    >
+                                        <Text style={{ fontSize: 13, color: lguForm.role === 'super_admin' ? "#1e293b" : "#64748b", fontWeight: lguForm.role === 'super_admin' ? "600" : "400" }}>Admin</Text>
+                                    </TouchableOpacity>
+                                </View>
 
-                                    {/* Location (Dropdown) */}
-                                    <View style={{ flex: 1, zIndex: 4000 }}>
+                                {/* Location (Sitio) - Only for LGUs/Users */}
+                                {lguForm.role !== 'super_admin' && (
+                                    <View style={{ marginBottom: 16 }}>
                                         <Text style={{ fontSize: 13, fontWeight: "600", color: "#334155", marginBottom: 8 }}>Location (Sitio)</Text>
                                         <TouchableOpacity
                                             style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, height: 44, backgroundColor: "#fff" }}
@@ -524,10 +528,9 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                                             <Feather name={showSitioDropdown ? "chevron-up" : "chevron-down"} size={18} color="#94a3b8" />
                                         </TouchableOpacity>
 
-                                        {/* Dropdown List */}
                                         {showSitioDropdown && (
-                                            <View style={{ position: "absolute", top: 50, left: 0, right: 0, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#e2e8f0", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 5, maxHeight: 200, zIndex: 5000 }}>
-                                                <ScrollView nestedScrollEnabled={true} style={{ maxHeight: 200 }}>
+                                            <View style={{ position: "absolute", top: 50, left: 0, right: 0, backgroundColor: "#fff", borderRadius: 8, borderWidth: 1, borderColor: "#e2e8f0", shadowColor: "#000", shadowOpacity: 0.1, shadowRadius: 4, elevation: 5, maxHeight: 150, zIndex: 5000 }}>
+                                                <ScrollView nestedScrollEnabled={true} style={{ maxHeight: 150 }}>
                                                     {SITIOS_MABOLO.map((sitio, index) => (
                                                         <TouchableOpacity
                                                             key={index}
@@ -544,28 +547,46 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                                             </View>
                                         )}
                                     </View>
+                                )}
+
+                                {/* Password */}
+                                <Text style={{ fontSize: 13, fontWeight: "600", color: "#334155", marginBottom: 8 }}>
+                                    {lguForm.role === 'lgu_admin' ? "Password (Optional - will be auto-generated if empty)" : "Account Password"}
+                                </Text>
+                                <View style={{ flexDirection: "row", alignItems: "center", borderWidth: 1, borderColor: "#e2e8f0", borderRadius: 8, paddingHorizontal: 12, marginBottom: 24, height: 44 }}>
+                                    <Feather name="lock" size={18} color="#94a3b8" style={{ marginRight: 10 }} />
+                                    <TextInput
+                                        style={{ flex: 1, fontSize: 14, color: "#0f172a", outlineStyle: 'none' }}
+                                        placeholder={lguForm.role === 'lgu_admin' ? "Auto-generated if empty" : "Enter password"}
+                                        placeholderTextColor="#94a3b8"
+                                        secureTextEntry={true}
+                                        value={lguForm.password}
+                                        onChangeText={(text) => setLguForm({ ...lguForm, password: text })}
+                                    />
                                 </View>
 
                                 {/* Create Button */}
                                 <TouchableOpacity
-                                    onPress={handleCreateLGU}
+                                    onPress={handleCreateUser}
                                     disabled={isSubmitting}
-                                    style={{ marginTop: 24, opacity: isSubmitting ? 0.7 : 1 }}
+                                    style={{ opacity: isSubmitting ? 0.7 : 1 }}
                                 >
                                     <LinearGradient
-                                        colors={["#6366f1", "#a855f7"]} // Violet/Purple gradient
+                                        colors={["#6366f1", "#a855f7"]}
                                         start={{ x: 0, y: 0 }}
                                         end={{ x: 1, y: 0 }}
                                         style={{ borderRadius: 10, paddingVertical: 14, alignItems: "center" }}
                                     >
-                                        {isSubmitting ? (
-                                            <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Creating Account...</Text>
-                                        ) : (
-                                            <View style={{ flexDirection: "row", alignItems: "center" }}>
-                                                <Feather name="plus" size={18} color="#fff" style={{ marginRight: 8 }} />
-                                                <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Create Account</Text>
-                                            </View>
-                                        )}
+                                        <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                            {isSubmitting ? (
+                                                <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Processing...</Text>
+                                            ) : (
+                                                <>
+                                                    <Feather name="plus" size={18} color="#fff" style={{ marginRight: 8 }} />
+                                                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Create Account</Text>
+                                                </>
+                                            )}
+                                        </View>
                                     </LinearGradient>
                                 </TouchableOpacity>
                             </View>
@@ -670,9 +691,8 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                     <View style={{ position: "absolute", top: 0, bottom: 0, left: 0, right: 0, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "center", alignItems: "center", zIndex: 2000 }}>
                         <View style={{ width: 800, flexDirection: 'row', backgroundColor: "#fff", borderRadius: 12, shadowColor: "#000", shadowOpacity: 0.25, shadowRadius: 20, elevation: 15, overflow: 'hidden' }}>
 
-                            {/* Left Column - Welcome Message */}
+                            {/* Left Column - Success Message */}
                             <View style={{ flex: 1, backgroundColor: '#f8fafc', padding: 40, justifyContent: 'center', position: 'relative' }}>
-                                {/* Subtle Background Pattern / Logo Overlay can go here */}
                                 <View style={{ position: 'absolute', opacity: 0.05, right: -20, bottom: -20 }}>
                                     <Feather name="shield" size={150} color="#000" />
                                 </View>
@@ -682,9 +702,9 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
                                     <Text style={{ fontSize: 24, fontWeight: '700', color: '#0f172a' }}>FloodGuard</Text>
                                 </View>
 
-                                <Text style={{ fontSize: 32, fontWeight: '800', color: '#0f172a', marginBottom: 16 }}>Welcome to FloodGuard!</Text>
+                                <Text style={{ fontSize: 32, fontWeight: '800', color: '#0f172a', marginBottom: 16 }}>Success!</Text>
                                 <Text style={{ fontSize: 16, color: '#64748b', lineHeight: 24 }}>
-                                    The LGU Moderator account has been successfully created. They can now log in to monitor sensors, manage alerts, and help keep the community safe.
+                                    The new account has been successfully created. They can now log in to the system and help keep the community safe.
                                 </Text>
                             </View>
 
@@ -726,3 +746,125 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
 };
 
 export default UserManagementPage;
+
+const pg = {
+    statsRow: {
+        flexDirection: "row",
+        gap: 16,
+        marginBottom: 24,
+    },
+    statsCard: {
+        flex: 1,
+        backgroundColor: "#ffffff",
+        borderRadius: 20,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: "#ECFAE5",
+        alignItems: "center", // Vertical layout
+    },
+    statsIcon: {
+        width: 44,
+        height: 44,
+        borderRadius: 12,
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: 12,
+    },
+    statsValue: {
+        fontSize: 24,
+        fontWeight: "700",
+        color: "#0f172a",
+        marginBottom: 4,
+        fontFamily: "Poppins_700Bold",
+    },
+    statsLabel: {
+        fontSize: 13,
+        fontWeight: "500",
+        color: "#64748b",
+        fontFamily: "Poppins_500Medium",
+    },
+    toolbar: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        marginBottom: 24,
+        backgroundColor: "#ffffff",
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: "#f1f5f9",
+    },
+    searchBox: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#f8fafc",
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        height: 44,
+        maxWidth: 400,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 14,
+        color: "#0f172a",
+        outlineStyle: 'none',
+    },
+    filterSelect: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#ffffff",
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+        borderRadius: 10,
+        paddingHorizontal: 16,
+        height: 44,
+        minWidth: 140,
+        justifyContent: "space-between",
+    },
+    filterSelectText: {
+        fontSize: 14,
+        fontWeight: "500",
+        color: "#475569",
+    },
+    dropdown: {
+        position: "absolute",
+        top: 50,
+        right: 0,
+        width: 180,
+        backgroundColor: "#ffffff",
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "#e2e8f0",
+        shadowColor: "#000",
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 10,
+        zIndex: 1000,
+    },
+    dropdownItem: {
+        padding: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: "#f1f5f9",
+    },
+    dropdownItemText: {
+        fontSize: 14,
+        color: "#475569",
+    },
+    addUserBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#2563eb",
+        borderRadius: 10,
+        paddingHorizontal: 16,
+        height: 44,
+        gap: 8,
+    },
+    addUserBtnText: {
+        color: "#ffffff",
+        fontSize: 14,
+        fontWeight: "600",
+    }
+};

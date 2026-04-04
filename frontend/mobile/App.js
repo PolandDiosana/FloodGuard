@@ -74,7 +74,7 @@ const ACCOUNT_IMAGE = require("./assets/flood.png");
 const LOCATION_IMAGE = require("./assets/flood4.jpg");
 const NOTIFY_IMAGE = require("./assets/flood5.jpg");
 const LOGO = require("./assets/logo.png");
-const API_BASE = "http://10.236.107.238:5000";
+const API_BASE = "http://10.234.235.238:5000";
 
 const safeGoBack = (navigation, fallback) => {
   if (navigation?.canGoBack?.()) {
@@ -2259,7 +2259,7 @@ const AlertsScreen = ({ navigation }) => {
       // Get user ID to filter out dismissed alerts
       const storedUser = await AsyncStorage.getItem("userData");
       let url = `${API_BASE}/api/alerts/`;
-      
+
       if (storedUser) {
         const user = JSON.parse(storedUser);
         if (user?.id) {
@@ -2269,7 +2269,7 @@ const AlertsScreen = ({ navigation }) => {
 
       console.log("Fetching alerts from:", url);
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error("Error response:", response.status, errorText);
@@ -2278,7 +2278,7 @@ const AlertsScreen = ({ navigation }) => {
 
       const data = await response.json();
       console.log("Alerts data received:", data);
-      
+
       const mapped = data.map(a => ({
         ...a,
         severity: a.level,
@@ -2319,10 +2319,10 @@ const AlertsScreen = ({ navigation }) => {
                 Alert.alert("Error", "User not found. Please log in again.");
                 return;
               }
-              
+
               const user = JSON.parse(storedUser);
               const userId = user?.id;
-              
+
               if (!userId) {
                 Alert.alert("Error", "User ID not found.");
                 return;
@@ -2330,7 +2330,7 @@ const AlertsScreen = ({ navigation }) => {
 
               const dismissUrl = `${API_BASE}/api/alerts/user/${userId}/dismiss/${alertId}`;
               console.log("Dismissing alert at URL:", dismissUrl);
-              
+
               // Call the dismiss endpoint (user-specific deletion)
               const response = await fetch(dismissUrl, {
                 method: "POST",
@@ -2437,7 +2437,7 @@ const AlertsScreen = ({ navigation }) => {
               {statusLabel}
             </Text>
           </View>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => handleDeleteAlert(alert.id, alert.title)}
             style={{ padding: 4 }}
           >
@@ -2558,10 +2558,10 @@ const AlertDetailScreen = ({ route, navigation }) => {
                 Alert.alert("Error", "User not found. Please log in again.");
                 return;
               }
-              
+
               const user = JSON.parse(storedUser);
               const userId = user?.id;
-              
+
               if (!userId) {
                 Alert.alert("Error", "User ID not found.");
                 return;
@@ -2569,7 +2569,7 @@ const AlertDetailScreen = ({ route, navigation }) => {
 
               const dismissUrl = `${API_BASE}/api/alerts/user/${userId}/dismiss/${alert.id}`;
               console.log("Dismissing alert from detail at URL:", dismissUrl);
-              
+
               // Call the dismiss endpoint (user-specific deletion)
               const response = await fetch(dismissUrl, {
                 method: "POST",

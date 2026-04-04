@@ -5,63 +5,102 @@ from utils.email_service import send_credentials_email
 
 admin_bp = Blueprint('admin', __name__)
 
-@admin_bp.route('/create-lgu', methods=['POST'])
-def create_lgu():
+@admin_bp.route('/fix-db', methods=['GET'])
+def fix_db():
+    try:
+        from utils.db import get_db
+        db = get_db()
+        cursor = db.cursor()
+        
+        # Repair users table
+        cursor.execute("DESCRIBE users")
+        u_cols = {row[0] for row in cursor.fetchall()}
+        if 'status' not in u_cols:
+            cursor.execute("ALTER TABLE users ADD COLUMN status VARCHAR(20) DEFAULT 'active'")
+        if 'avatar_url' not in u_cols:
+            cursor.execute("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL")
+            
+        # Repair admins table
+        cursor.execute("DESCRIBE admins")
+        a_cols = {row[0] for row in cursor.fetchall()}
+        if 'status' not in a_cols:
+            cursor.execute("ALTER TABLE admins ADD COLUMN status VARCHAR(20) DEFAULT 'active'")
+        if 'avatar_url' not in a_cols:
+            cursor.execute("ALTER TABLE admins ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL")
+        if 'full_name' not in a_cols:
+            cursor.execute("ALTER TABLE admins ADD COLUMN full_name VARCHAR(100) DEFAULT NULL")
+        if 'created_at' not in a_cols:
+            cursor.execute("ALTER TABLE admins ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+            
+        db.commit()
+        cursor.close()
+        return jsonify({"message": "Database schema repaired successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@admin_bp.route('/create-user', methods=['POST'])
+def create_user():
     data = request.get_json()
     full_name = data.get('full_name')
     email = data.get('email')
-    phone = data.get('phone')
-    barangay = data.get('barangay')
+    phone = data.get('phone') or ""
+    barangay = data.get('barangay') or ""
     password = data.get('password')
+    role = data.get('role', 'lgu_admin') # Default for safety
 
     import logging
     logger = logging.getLogger(__name__)
-    logger.info(f"Received create-lgu request for {email}")
+    logger.info(f"Received create-user request for {email} as {role}")
 
-    if not full_name or not email or not password:
-        return jsonify({"error": "Full name, email, and password are required"}), 400
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
 
-    # Default role to 'lgu_admin' or similar. 
-    # Let's use 'lgu' as per frontend mock data ('LGU Moderator' mapped to 'lgu' probably).
-    # LandingPage.js mapped 'lgu_admin' -> 'lgu'. let's use 'lgu_admin' for consistency with backend role names if established.
-    # But wait, LandingPage.js logic:
-    # if (data.user.role === "super_admin") appRole = "admin";
-    # else if (data.user.role === "lgu_admin") appRole = "lgu";
-    
-    role = 'lgu_admin'
-    
-    password_hash = generate_password_hash(password)
-    
     db = get_db()
     cursor = db.cursor(dictionary=True)
     
-    # Check if email exists in users
+    # Check if exists in any table
     cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
     if cursor.fetchone():
         cursor.close()
-        return jsonify({"error": "Email already registered"}), 409
+        return jsonify({"error": "Email already exists in mobile users"}), 409
+        
+    cursor.execute("SELECT id FROM admins WHERE username = %s", (email,))
+    if cursor.fetchone():
+        cursor.close()
+        return jsonify({"error": "Username/Email already exists in admins"}), 409
         
     try:
-        cursor.execute("""
-            INSERT INTO users (full_name, email, phone, barangay, password, role, must_change_password)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (full_name, email, phone, barangay, password_hash, role, 1))
-        # Default must_change_password to 1 so they change it on first login? 
-        # Yes, good security practice.
+        password_hash = generate_password_hash(password)
         
+        if role in ['super_admin', 'admin']:
+            # Insert into admins table (username, password, role, full_name)
+            cursor.execute("""
+                INSERT INTO admins (username, password, role, full_name)
+                VALUES (%s, %s, %s, %s)
+            """, (email, password_hash, role, full_name))
+        else:
+            # Insert into users table (full_name, email, role, etc)
+            cursor.execute("""
+                INSERT INTO users (full_name, email, phone, barangay, password, role, must_change_password)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (full_name, email, phone, barangay, password_hash, role, 1))
+
         db.commit()
         user_id = cursor.lastrowid
         cursor.close()
         
-        # Send email
-        logger.info(f"Attempting to send email to {email}")
-        success, message = send_credentials_email(email, full_name, password)
-        logger.info(f"Email send result: {success}, {message}")
+        # Send credentials via email (primarily for LGU creation)
+        if role == 'lgu_admin':
+            logger.info(f"Attempting to send email to {email}")
+            success, message = send_credentials_email(email, full_name or email, password)
+            logger.info(f"Email send result: {success}, {message}")
+        else:
+             success = True
         
         return jsonify({
-            "message": "LGU account created successfully",
+            "message": f"Account with role '{role}' created successfully",
             "user_id": user_id,
-            "email_sent": success
+            "email_sent": success if role == 'lgu_admin' else False
         }), 201
     except Exception as e:
         cursor.close()
@@ -74,11 +113,17 @@ def get_users():
         from models.user import User
         users = User.get_all_users()
         
-        # Calculate stats
+        # 1. Total users is the combined list
         total_users = len(users)
-        active_users = sum(1 for u in users if u['status'] == 'active')
-        lgu_moderators = sum(1 for u in users if u['role'] == 'lgu_admin')
-        super_admins = sum(1 for u in users if u['role'] == 'super_admin')
+        
+        # 2. Count active users (defaulting to active if status is None)
+        active_users = sum(1 for u in users if (u.get('status') or 'active').lower() == 'active')
+        
+        # 3. Count moderators (including 'lgu_admin' and 'lgu')
+        lgu_moderators = sum(1 for u in users if u.get('role') in ['lgu_admin', 'lgu'])
+        
+        # 4. Count super admins (including 'super_admin' and 'admin')
+        super_admins = sum(1 for u in users if u.get('role') in ['super_admin', 'admin'])
         
         # We can also count specific user roles if needed
         regular_users = sum(1 for u in users if u['role'] == 'user')

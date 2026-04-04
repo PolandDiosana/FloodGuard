@@ -14,7 +14,6 @@ import SuperAdminDashboard from "./src/screens/SuperAdminDashboard";
 import SensorMapPage from "./src/screens/SensorMapPage";
 import AlertManagementPage from "./src/screens/AlertManagementPage";
 import VerifyAlertsPage from "./src/screens/VerifyAlertsPage";
-import SystemHealthPage from "./src/screens/SystemHealthPage";
 import DataReportsPage from "./src/screens/DataReportsPage";
 import UserManagementPage from "./src/screens/UserManagementPage";
 import EvacuationManagementPage from "./src/screens/EvacuationManagementPage";
@@ -149,8 +148,6 @@ export default function App() {
         return <AlertManagementPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       case "verify-alerts":
         return <VerifyAlertsPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} currentUser={getCurrentUser()} />;
-      case "system-health":
-        return <SystemHealthPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       case "user-management":
         return <UserManagementPage onNavigate={handleNavigate} onLogout={handleLogout} userRole={userRole} />;
       case "threshold-config":

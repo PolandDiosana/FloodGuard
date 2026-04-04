@@ -241,10 +241,13 @@ const LandingPage = ({ onLoginSuccess, onNavigatePublic, initialLoginOpen, reset
         setError("");
 
         try {
-            console.log("Attempting login with:", email);
+            console.log("Attempting login with:", email, "Required Role:", accessLevel);
             const delayPromise = new Promise(resolve => setTimeout(resolve, 1500));
-            const payload = { username: email.trim().toLowerCase(), password: password };
-            console.log('DEBUG login payload', payload);
+            const payload = { 
+                username: email.trim().toLowerCase(), 
+                password: password,
+                required_role: accessLevel // 'admin' or 'lgu'
+            };
             const loginPromise = fetch(`${API_BASE_URL}/api/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

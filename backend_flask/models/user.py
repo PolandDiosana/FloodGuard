@@ -62,39 +62,59 @@ class User:
         db = get_db()
         cursor = db.cursor(dictionary=True)
         
-        # Fetch all users from 'users' table
-        # We also want to include admins from 'admins' table to show Super Admins
+        # 1. Dynamically find existing columns for 'users'
+        cursor.execute("DESCRIBE users")
+        u_cols = {row['Field'] for row in cursor.fetchall()}
+        
+        # Build safe query for users
+        u_select = ["id", "role"]
+        if "email" in u_cols: u_select.append("email")
+        if "full_name" in u_cols: u_select.append("full_name")
+        if "barangay" in u_cols: u_select.append("barangay")
+        if "status" in u_cols: u_select.append("status")
+        if "created_at" in u_cols: u_select.append("created_at")
+        if "avatar_url" in u_cols: u_select.append("avatar_url")
+        
+        cursor.execute(f"SELECT {', '.join(u_select)} FROM users")
+        mobile_users = cursor.fetchall()
         
         all_users = []
-        
-        # 1. Get mobile users / LGU admins stored in 'users' table
-        cursor.execute("SELECT id, full_name, email, role, barangay, status, created_at, avatar_url FROM users")
-        mobile_users = cursor.fetchall()
         for u in mobile_users:
+            email = u.get('email') or u.get('username', 'N/A')
             all_users.append({
-                "id": f"u-{u['id']}", # Prefix ID to avoid collision
-                "name": u['full_name'],
-                "email": u['email'],
-                "role": u.get('role', 'user'),  # Default to 'user' if null
+                "id": f"u-{u['id']}",
+                "name": u.get('full_name') or email,
+                "email": email,
+                "role": u.get('role', 'user'),
                 "location": u.get('barangay', 'N/A'),
                 "status": u.get('status', 'active'),
-                "joined": u['created_at'].strftime('%Y-%m-%d') if u['created_at'] else 'N/A',
+                "joined": (u['created_at'].strftime('%Y-%m-%d') if hasattr(u.get('created_at'), 'strftime') else str(u.get('created_at'))) if u.get('created_at') else 'N/A',
                 "avatar_url": u.get('avatar_url'),
                 "type": "user"
             })
 
-        # 2. Get super admins from 'admins' table
-        cursor.execute("SELECT id, username, role, created_at, avatar_url FROM admins WHERE role = 'super_admin'")
+        # 2. Dynamically find existing columns for 'admins'
+        cursor.execute("DESCRIBE admins")
+        a_cols = {row['Field'] for row in cursor.fetchall()}
+        
+        # Build safe query for admins
+        a_select = ["id", "username", "role"]
+        if "full_name" in a_cols: a_select.append("full_name")
+        if "created_at" in a_cols: a_select.append("created_at")
+        if "avatar_url" in a_cols: a_select.append("avatar_url")
+        
+        cursor.execute(f"SELECT {', '.join(a_select)} FROM admins")
         admins = cursor.fetchall()
+        
         for a in admins:
              all_users.append({
                 "id": f"a-{a['id']}",
-                "name": "Super Admin", # Admins might not have full_name, use generic or username
+                "name": a.get('full_name') or a['username'],
                 "email": a['username'],
-                "role": "super_admin",
+                "role": a.get('role', 'admin'),
                 "location": "All Locations",
-                "status": "active", # Admins are always active for now
-                "joined": a['created_at'].strftime('%Y-%m-%d') if a['created_at'] else 'N/A',
+                "status": "active",
+                "joined": (a['created_at'].strftime('%Y-%m-%d') if hasattr(a.get('created_at'), 'strftime') else str(a.get('created_at'))) if a.get('created_at') else 'N/A',
                 "avatar_url": a.get('avatar_url'),
                 "type": "admin"
             })

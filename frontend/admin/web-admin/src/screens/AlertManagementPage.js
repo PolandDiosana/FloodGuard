@@ -477,7 +477,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
         <View style={styles.ccOpsGrid}>
             {/* Mission Control: Active Alerts */}
             <View style={styles.ccOpsLeft}>
-                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0 }]}>
+                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0, overflow: 'hidden' }]}>
                     <View style={styles.ccPanelHeader}>
                         <View>
                             <Text style={styles.ccPanelTitle}>Mission Control</Text>
@@ -496,7 +496,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                             <Text style={{ color: '#64748b', marginTop: 16, fontSize: 14 }}>All clear. No active threats detected.</Text>
                         </View>
                     ) : (
-                        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
                             {activeAlerts.map(a => {
                                 const levelMap = {
                                     advisory: { label: 'ADVISORY', color: '#3b82f6', bg: '#eff6ff', progress: 0.25 },
@@ -558,7 +558,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
             {/* Pending Verifications */}
             <View style={styles.ccOpsRight}>
-                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0, borderLeftWidth: 4, borderLeftColor: '#3b82f6' }]}>
+                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0, borderLeftWidth: 4, borderLeftColor: '#3b82f6', overflow: 'hidden' }]}>
                     <View style={styles.ccPanelHeader}>
                         <View>
                             <Text style={styles.ccPanelTitle}>Citizen Reports</Text>
@@ -575,7 +575,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                             <Text style={{ color: '#94a3b8', marginTop: 12, fontSize: 13 }}>No reports to verify</Text>
                         </View>
                     ) : (
-                        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+                        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
                             {verifications.map((item) => (
                                 <TouchableOpacity
                                     key={item.id}
@@ -618,9 +618,9 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     const renderBroadcastStudio = () => (
         <View style={styles.ccBroadcastGrid}>
             <View style={styles.ccFormSection}>
-                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0 }]}>
+                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0, overflow: 'hidden' }]}>
                     <Text style={[styles.ccPanelTitle, { marginBottom: 20 }]}>Broadcast Alert Studio</Text>
-
+                    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
                     <View style={{ marginBottom: 20 }}>
                         <Text style={styles.alertInputLabel}>Priority Level</Text>
                         <View style={styles.ccBrgyGrid}>
@@ -702,15 +702,16 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                             </>
                         )}
                     </TouchableOpacity>
+                    </ScrollView>
                 </View>
             </View>
 
             <View style={styles.ccHistorySection}>
-                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0 }]}>
+                <View style={[styles.ccPanel, { flex: 1, marginBottom: 0, overflow: 'hidden' }]}>
                     <Text style={styles.ccPanelTitle}>Operational History</Text>
                     <Text style={styles.ccPanelSubtitle}>Review past broadcasts</Text>
 
-                    <ScrollView style={{ marginTop: 20, flex: 1 }} showsVerticalScrollIndicator={false}>
+                    <ScrollView style={{ marginTop: 20, flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
                         {alertHistory.map(item => (
                             <View key={item.id} style={{ paddingBottom: 16, marginBottom: 16, paddingRight: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' }}>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
@@ -790,7 +791,7 @@ const AlertManagementPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
 
                 {renderTabs()}
 
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, overflow: 'hidden' }}>
                     {activeTab === "operations" && renderOperations()}
                     {activeTab === "broadcast" && renderBroadcastStudio()}
                     {activeTab === "audit" && renderAuditLog()}
