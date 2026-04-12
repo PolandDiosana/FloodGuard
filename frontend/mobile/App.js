@@ -74,7 +74,7 @@ const ACCOUNT_IMAGE = require("./assets/flood.png");
 const LOCATION_IMAGE = require("./assets/flood4.jpg");
 const NOTIFY_IMAGE = require("./assets/flood5.jpg");
 const LOGO = require("./assets/logo.png");
-const API_BASE = "http://10.234.235.238:5000";
+const API_BASE = "http://192.168.5.46:5000";
 
 const safeGoBack = (navigation, fallback) => {
   if (navigation?.canGoBack?.()) {
