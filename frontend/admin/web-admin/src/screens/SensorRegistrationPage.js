@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, StyleSheet, Platform, Animated } from "react-native";
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Modal, ActivityIndicator, StyleSheet, Platform, Animated, Switch } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { styles } from "../styles/globalStyles";
@@ -241,6 +241,33 @@ const ManageSensorsPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
     };
 
     const showErr = (msg) => { setErrorMessage(msg); setShowErrorModal(true); };
+
+    // ── Toggle sensor on/off ──────────────────────────────────────
+    const [togglingId, setTogglingId] = useState(null);
+
+    const handleToggleSensor = async (sensor, enabled) => {
+        setTogglingId(sensor.id);
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/iot/sensors/${sensor.id}/toggle`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ enabled })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                // Re-fetch live data so card grid updates
+                await fetchHealthData();
+                setSuccessMessage(`Sensor "${sensor.name}" turned ${enabled ? "ON" : "OFF"} successfully!`);
+                setShowSuccessModal(true);
+            } else {
+                showErr(data.error || "Failed to toggle sensor");
+            }
+        } catch (e) {
+            showErr("Network error while toggling sensor");
+        } finally {
+            setTogglingId(null);
+        }
+    };
 
     const filteredSensors = sensors.filter(s => {
         const q = searchQuery.toLowerCase();
@@ -545,7 +572,7 @@ const ManageSensorsPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                                 activeOpacity={0.7}
                                                 onPress={() => {
                                                     const live = liveSensors.find(ls => ls.id === sensor.id);
-                                                    setSelectedSensorHealth({ ...sensor, live });
+                                                    setSelectedSensorHealth({ ...sensor, enabled: live?.enabled ?? true, live });
                                                     setShowStatusModal(true);
                                                 }}
                                             >
@@ -568,11 +595,22 @@ const ManageSensorsPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                                             <Text style={pg.sensorId}>• {sensor.id}</Text>
                                                         </View>
                                                     </View>
-                                                    {isSuperAdmin && (
-                                                        <TouchableOpacity style={pg.deleteBtn} onPress={() => handleDeleteSensor(sensor.id)}>
-                                                            <Feather name="trash-2" size={15} color="#dc2626" />
-                                                        </TouchableOpacity>
-                                                    )}
+                                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                                        <Switch
+                                                            value={live?.enabled !== false}
+                                                            onValueChange={(val) => {
+                                                                handleToggleSensor(sensor, val);
+                                                            }}
+                                                            disabled={togglingId === sensor.id}
+                                                            trackColor={{ false: "#cbd5e1", true: "#86efac" }}
+                                                            thumbColor={live?.enabled === false ? "#94a3b8" : "#16a34a"}
+                                                        />
+                                                        {isSuperAdmin && (
+                                                            <TouchableOpacity style={pg.deleteBtn} onPress={(e) => { e.stopPropagation?.(); handleDeleteSensor(sensor.id); }}>
+                                                                <Feather name="trash-2" size={15} color="#dc2626" />
+                                                            </TouchableOpacity>
+                                                        )}
+                                                    </View>
                                                 </View>
 
                                                 <View style={pg.cardDivider} />
@@ -749,6 +787,8 @@ const ManageSensorsPage = ({ onNavigate, onLogout, userRole = "lgu" }) => {
                                                 <Text style={{ fontSize: 13, color: "#64748b", fontFamily: "Poppins_400Regular" }}>Coordinates</Text>
                                                 <Text style={{ fontSize: 13, color: "#0f172a", fontFamily: "Poppins_600SemiBold" }}>{sh.lat?.toFixed(6)}, {sh.lng?.toFixed(6)}</Text>
                                             </View>
+
+
                                             {sh.description && (
                                                 <View style={{ gap: 4 }}>
                                                     <Text style={{ fontSize: 13, color: "#64748b", fontFamily: "Poppins_400Regular" }}>Description</Text>

@@ -279,7 +279,7 @@ def get_all_sensors_status():
     db = get_db()
     cur = db.cursor(dictionary=True)
     try:
-        # Get all registered sensors
+        # Get all registered sensors (include status to check active/inactive)
         cur.execute("SELECT id, name, barangay, lat, lng, status, battery_level, signal_strength FROM sensors")
         sensors = cur.fetchall()
         
@@ -299,28 +299,40 @@ def get_all_sensors_status():
         for s in sensors:
             s['lat'] = float(s['lat']) if s['lat'] else 0
             s['lng'] = float(s['lng']) if s['lng'] else 0
-            
+
+            # If sensor is disabled (inactive), force it offline regardless of readings
+            is_disabled = s.get('status') == 'inactive'
+
             latest = readings_map.get(s['id'])
             if latest:
                 s['flood_level'] = float(latest['flood_level']) if latest['flood_level'] else 0
                 s['reading_status'] = latest['reading_status']
                 s['last_seen'] = latest['created_at'].isoformat() if isinstance(latest['created_at'], datetime) else str(latest['created_at'])
                 
-                # Check if offline (using local time to match DB)
-                created_at_dt = latest['created_at']
-                age_seconds = (datetime.now() - created_at_dt).total_seconds()
-                s['is_offline'] = age_seconds > 30
+                if is_disabled:
+                    s['is_offline'] = True
+                else:
+                    # Check if offline by reading age (using local time to match DB)
+                    created_at_dt = latest['created_at']
+                    age_seconds = (datetime.now() - created_at_dt).total_seconds()
+                    s['is_offline'] = age_seconds > 30
             else:
                 s['flood_level'] = 0
                 s['reading_status'] = 'OFFLINE'
                 s['is_offline'] = True
                 s['last_seen'] = None
+
+        # Add enabled flag so frontend knows the switch state
+        for s in sensors:
+            s['enabled'] = s.get('status') != 'inactive'
                 
         cur.close()
         return jsonify(sensors), 200
     except Exception as e:
         if cur: cur.close()
         return jsonify({"error": str(e)}), 500
+
+
 
 
 @iot_bp.route("/registers-sensor", methods=["POST"])
@@ -462,6 +474,45 @@ def update_sensor(sensor_id):
     except Exception as e:
         db.rollback()
         cur.close()
+        return jsonify({"error": str(e)}), 500
+
+
+@iot_bp.route("/sensors/<string:sensor_id>/toggle", methods=["PATCH"])
+def toggle_sensor(sensor_id):
+    """Enable or disable a sensor (on/off switch).
+    Body: { "enabled": true | false }
+    When disabled the sensor is treated as offline everywhere.
+    """
+    data = request.get_json(silent=True) or {}
+    enabled = data.get("enabled")
+    if enabled is None:
+        return jsonify({"error": "enabled (bool) is required"}), 400
+
+    db = get_db()
+    cur = db.cursor()
+    try:
+        cur.execute("SELECT id FROM sensors WHERE id = %s", (sensor_id,))
+        if not cur.fetchone():
+            cur.close()
+            return jsonify({"error": "Sensor not found"}), 404
+
+        new_status = "active" if enabled else "inactive"
+        cur.execute(
+            "UPDATE sensors SET status = %s, last_update = CURRENT_TIMESTAMP WHERE id = %s",
+            (new_status, sensor_id)
+        )
+        db.commit()
+        cur.close()
+        return jsonify({
+            "message": f"Sensor {'enabled' if enabled else 'disabled'} successfully",
+            "sensor_id": sensor_id,
+            "enabled": enabled,
+            "status": new_status
+        }), 200
+    except Exception as e:
+        db.rollback()
+        if cur:
+            cur.close()
         return jsonify({"error": str(e)}), 500
 
 
