@@ -1,5 +1,8 @@
--- Create the admins table if it doesn't exist
+-- FloodGuard Database Schema
+CREATE DATABASE IF NOT EXISTS `floodguard`;
 USE `floodguard`;
+
+-- Admin accounts for the web dashboard
 CREATE TABLE IF NOT EXISTS `admins` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `username` varchar(255) NOT NULL,
@@ -10,7 +13,7 @@ CREATE TABLE IF NOT EXISTS `admins` (
   UNIQUE KEY `username` (`username`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Users table (Registered Mobile Users)
+-- Registered mobile app users
 CREATE TABLE IF NOT EXISTS `users` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `full_name` varchar(255) NOT NULL,
@@ -21,10 +24,12 @@ CREATE TABLE IF NOT EXISTS `users` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Sensors table
+-- IoT Sensor devices configuration and meta-data
 CREATE TABLE IF NOT EXISTS `sensors` (
   `id` varchar(50) NOT NULL,
   `name` varchar(100) NOT NULL,
+  `barangay` varchar(100),
+  `description` text,
   `lat` decimal(10, 8) NOT NULL,
   `lng` decimal(11, 8) NOT NULL,
   `status` enum('active', 'inactive', 'maintenance') DEFAULT 'active',
@@ -34,17 +39,32 @@ CREATE TABLE IF NOT EXISTS `sensors` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Water Levels table (Historical Data)
+-- Historical water level data for charts and analysis
 CREATE TABLE IF NOT EXISTS `water_levels` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `sensor_id` varchar(50) NOT NULL,
-  `level` decimal(5, 2) NOT NULL, -- in meters
+  `level` decimal(10, 2) NOT NULL, -- level in centimeters or meters
   `timestamp` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
-  FOREIGN KEY (`sensor_id`) REFERENCES `sensors`(`id`)
+  FOREIGN KEY (`sensor_id`) REFERENCES `sensors`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Alerts table
+-- Full IoT readings including diagnostic data
+CREATE TABLE IF NOT EXISTS `iot_readings` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `sensor_id` varchar(50) NOT NULL,
+  `raw_distance` decimal(10, 2),
+  `flood_level` decimal(10, 2),
+  `status` varchar(50) DEFAULT 'NORMAL',
+  `latitude` decimal(10, 8),
+  `longitude` decimal(11, 8),
+  `maps_url` varchar(255),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`sensor_id`) REFERENCES `sensors`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Emergency alerts and advisories
 CREATE TABLE IF NOT EXISTS `alerts` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `title` varchar(255) NOT NULL,
@@ -56,21 +76,22 @@ CREATE TABLE IF NOT EXISTS `alerts` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Reports table (User Submitted)
+-- Community reports submitted via mobile app
 CREATE TABLE IF NOT EXISTS `reports` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
-  `user_id` int(11) DEFAULT NULL, -- Nullable if reports can be anonymous or just name-based
+  `user_id` int(11) DEFAULT NULL,
   `reporter_name` varchar(100) DEFAULT 'Anonymous',
-  `type` varchar(50) NOT NULL, -- Flooding, Road Closure, etc.
+  `type` varchar(50) NOT NULL,
   `location` varchar(255) NOT NULL,
   `description` text,
   `image_url` varchar(255),
   `timestamp` timestamp NOT NULL DEFAULT current_timestamp(),
   `status` enum('pending', 'verified', 'dismissed') DEFAULT 'pending',
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Evacuation Centers table
+-- Evacuation centers information
 CREATE TABLE IF NOT EXISTS `evacuation_centers` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
@@ -85,9 +106,7 @@ CREATE TABLE IF NOT EXISTS `evacuation_centers` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- TRUNCATE TABLE `admins`; -- Optional: Clear existing data to avoid duplicates (use with caution)
-
--- Insert sample users with hashed passwords
+-- Initial default admin setup
 -- Default password: 'admin123'
 INSERT INTO `admins` (`username`, `password`, `role`) VALUES
 ('admin@system.com', 'scrypt:32768:8:1$12Jjtqo4$c62fa32f70f45d0029c304ba7eb5982d37748c', 'super_admin')
