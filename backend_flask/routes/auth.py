@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, request, jsonify
 from models.user import User
 import jwt
@@ -5,6 +6,8 @@ import datetime
 from config import Config
 from werkzeug.security import generate_password_hash
 from utils.db import get_db
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -15,20 +18,17 @@ def login():
     password = (data.get('password') or '').strip()
     required_role = data.get('required_role') # 'admin' or 'lgu' from web dashboard
 
-    print(f"[DEBUG LOGIN] Received login attempt user={username} req_role={required_role}")
+    logger.info("Login attempt: user=%s req_role=%s", username, required_role)
 
     if not username or not password:
-        print("[DEBUG LOGIN] Missing username or password")
         return jsonify({"error": "Username and password required"}), 400
 
     user = User.find_by_username(username)
 
     if not user:
-        print(f"[DEBUG LOGIN] User not found: {username}")
+        logger.warning("Login failed - user not found: %s", username)
     else:
-        print(f"[DEBUG LOGIN] Found user: {user.username} role={user.role}")
-        ok = user.check_password(password)
-        print(f"[DEBUG LOGIN] Password check: {ok}")
+        logger.debug("Found user: %s role=%s", user.username, user.role)
 
     if user and user.check_password(password):
         # --- Strict Role Validation ---
@@ -67,14 +67,13 @@ def login():
         try:
              db = get_db()
              cursor = db.cursor()
-             # Check table directly
              cursor.execute("SELECT must_change_password FROM users WHERE id = %s", (user.id,))
              result = cursor.fetchone()
              if result:
                  must_change = bool(result[0])
              cursor.close()
-        except:
-             pass
+        except Exception as e:
+             logger.warning("Could not fetch must_change_password for user %s: %s", user.id, e)
 
         return jsonify({
             "token": token,
@@ -171,13 +170,6 @@ def change_password():
         return jsonify({"error": str(e)}), 500
     finally:
         cursor.close()
-
-@auth_bp.route('/test-hash', methods=['POST'])
-def test_hash():
-    # Helper to generate a hash for manually seeding the DB if needed
-    data = request.get_json()
-    pwd = data.get('password')
-    return jsonify({"hash": generate_password_hash(pwd)})
 
 @auth_bp.route('/logout', methods=['POST'])
 def logout():

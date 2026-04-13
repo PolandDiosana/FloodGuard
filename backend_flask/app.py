@@ -1,6 +1,12 @@
+import logging
 from flask import Flask
 from flask_cors import CORS
 from config import Config
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 from routes.auth import auth_bp
 from routes.dashboard import dashboard_bp
 from routes.alerts import alerts_bp
@@ -38,6 +44,8 @@ def home():
     return {"message": "FloodGuard Flask Backend is Running!"}
 
 if __name__ == '__main__':
-    # Running on port 5000 by default. 
+    # Running on port 5000 by default.
     # Use 'flask run' in production or gunicorn.
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    import os
+    debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)

@@ -1,5 +1,8 @@
+import logging
 from flask import Blueprint, request, jsonify
 from utils.db import get_db
+
+logger = logging.getLogger(__name__)
 
 alerts_bp = Blueprint('alerts', __name__)
 
@@ -9,19 +12,15 @@ def dismiss_alert_for_user(user_id, alert_id):
     db = get_db()
     cursor = db.cursor()
     try:
-        print(f"[DEBUG] Dismissing alert {alert_id} for user {user_id}")
-        # Insert into user_alert_dismissals table
         cursor.execute("""
             INSERT INTO user_alert_dismissals (user_id, alert_id)
             VALUES (%s, %s)
             ON DUPLICATE KEY UPDATE dismissed_at = NOW()
         """, (user_id, alert_id))
         db.commit()
-        
-        print(f"[DEBUG] Alert {alert_id} dismissed for user {user_id}")
         return jsonify({"message": "Alert dismissed for user"}), 200
     except Exception as e:
-        print(f"[ERROR] Failed to dismiss alert {alert_id} for user {user_id}: {str(e)}")
+        logger.error("Failed to dismiss alert %s for user %s: %s", alert_id, user_id, e)
         return jsonify({"error": str(e)}), 500
     finally:
         cursor.close()
@@ -32,18 +31,15 @@ def delete_alert(alert_id):
     db = get_db()
     cursor = db.cursor()
     try:
-        print(f"[DEBUG] Attempting to delete alert ID: {alert_id}")
         cursor.execute("DELETE FROM alerts WHERE id = %s", (alert_id,))
         db.commit()
-        
+
         if cursor.rowcount > 0:
-            print(f"[DEBUG] Alert {alert_id} deleted successfully")
             return jsonify({"message": "Alert deleted successfully"}), 200
         else:
-            print(f"[DEBUG] Alert {alert_id} not found")
             return jsonify({"error": "Alert not found"}), 404
     except Exception as e:
-        print(f"[ERROR] Failed to delete alert {alert_id}: {str(e)}")
+        logger.error("Failed to delete alert %s: %s", alert_id, e)
         return jsonify({"error": str(e)}), 500
     finally:
         cursor.close()

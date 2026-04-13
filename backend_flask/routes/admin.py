@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from utils.db import get_db
 from werkzeug.security import generate_password_hash
 from utils.email_service import send_credentials_email
+from utils.auth_middleware import admin_required, lgu_or_admin_required
 
 admin_bp = Blueprint('admin', __name__)
 
@@ -39,7 +40,8 @@ def fix_db():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/create-user', methods=['POST'])
-def create_user():
+@admin_required
+def create_user(current_user):
     data = request.get_json()
     full_name = data.get('full_name')
     email = data.get('email')
@@ -108,7 +110,8 @@ def create_user():
 
 
 @admin_bp.route('/users', methods=['GET'])
-def get_users():
+@lgu_or_admin_required
+def get_users(current_user):
     try:
         from models.user import User
         users = User.get_all_users()
@@ -141,7 +144,8 @@ def get_users():
         return jsonify({"error": str(e)}), 500
 
 @admin_bp.route('/users/<string:user_id>', methods=['DELETE'])
-def delete_user(user_id):
+@admin_required
+def delete_user(current_user, user_id):
     db = get_db()
     cursor = db.cursor()
     try:
@@ -163,7 +167,8 @@ def delete_user(user_id):
         cursor.close()
 
 @admin_bp.route('/users/<string:user_id>/status', methods=['PUT'])
-def update_user_status(user_id):
+@lgu_or_admin_required
+def update_user_status(current_user, user_id):
     data = request.get_json()
     new_status = data.get('status')
     
@@ -187,7 +192,8 @@ def update_user_status(user_id):
         cursor.close()
 
 @admin_bp.route('/users/<string:user_id>/role', methods=['PUT'])
-def update_user_role(user_id):
+@admin_required
+def update_user_role(current_user, user_id):
     data = request.get_json()
     new_role = data.get('role')
     

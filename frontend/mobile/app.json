@@ -39,6 +39,12 @@
           "photosPermission": "The app accesses your photos to submit flood reports."
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "FloodGuard needs your location to show the nearest evacuation centers and routes."
+        }
+      ],
       "expo-font"
     ]
   }

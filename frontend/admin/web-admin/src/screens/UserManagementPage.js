@@ -6,6 +6,7 @@ import { styles } from "../styles/globalStyles";
 import AdminSidebar from "../components/AdminSidebar";
 import RealTimeClock from "../components/RealTimeClock";
 import { API_BASE_URL } from "../config/api";
+import { authFetch } from "../utils/helpers";
 
 const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) => {
     const [searchQuery, setSearchQuery] = useState("");
@@ -32,7 +33,7 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
 
     const fetchUsers = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/admin/users`);
+            const response = await authFetch(`${API_BASE_URL}/api/admin/users`);
             const data = await response.json();
             if (response.ok) {
                 // Map backend roles to frontend display roles
@@ -122,14 +123,14 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
         setIsSubmitting(true);
         try {
             // Update Status
-            const statusRes = await fetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}/status`, {
+            const statusRes = await authFetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}/status`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: editForm.status })
             });
 
             // Update Role
-            const roleRes = await fetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}/role`, {
+            const roleRes = await authFetch(`${API_BASE_URL}/api/admin/users/${editingUser.id}/role`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ role: editForm.role })
@@ -152,7 +153,7 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
     const handleDeleteUser = async (userId) => {
         if (confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
+                const response = await authFetch(`${API_BASE_URL}/api/admin/users/${userId}`, {
                     method: "DELETE"
                 });
                 if (response.ok) {
@@ -195,7 +196,7 @@ const UserManagementPage = ({ onNavigate, onLogout, userRole = "superadmin" }) =
 
         setIsSubmitting(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/admin/create-user`, {
+            const response = await authFetch(`${API_BASE_URL}/api/admin/create-user`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),

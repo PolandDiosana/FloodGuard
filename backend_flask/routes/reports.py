@@ -1,6 +1,11 @@
+import os
+import logging
 from flask import Blueprint, request, jsonify, send_from_directory, current_app
 from datetime import datetime, timedelta
+from werkzeug.utils import secure_filename
 from utils.db import get_db
+
+logger = logging.getLogger(__name__)
 
 reports_bp = Blueprint('reports', __name__)
 
@@ -14,18 +19,18 @@ def download_file(name):
 
 @reports_bp.route('/', methods=['POST'])
 def create_report():
-    print(f"DEBUG: Content-Type: {request.content_type}")
-    print(f"DEBUG: Method: {request.method}")
-    print(f"DEBUG: Files: {list(request.files.keys()) if request.files else 'No files'}")
-    print(f"DEBUG: Form: {dict(request.form) if request.form else 'No form data'}")
+    logger.debug("Content-Type: %s", request.content_type)
+    logger.debug("Method: %s", request.method)
+    logger.debug("Files: %s", list(request.files.keys()) if request.files else 'No files')
+    logger.debug("Form: %s", dict(request.form) if request.form else 'No form data')
 
     # Check if this is a multipart request (with file) or JSON
     if request.is_json:
         data = request.get_json()
-        print(f"DEBUG: JSON data: {data}")
+        logger.debug("JSON data: %s", data)
     else:
         data = request.form
-        print(f"DEBUG: Form data: {dict(data)}")
+        logger.debug("Form data: %s", dict(data))
 
     reporter_name = data.get('reporter_name', 'Anonymous')
     reporter_email = data.get('reporter_email')  # Optional email for notifications
@@ -34,26 +39,26 @@ def create_report():
     description = data.get('description')
     image_url = None
 
-    print(f"DEBUG: Extracted - name: {reporter_name}, email: {reporter_email}, type: {report_type}, location: {location}")
+    logger.debug("Extracted - name: %s, type: %s, location: %s", reporter_name, report_type, location)
 
     # Handle Image Upload
     if 'image' in request.files:
         file = request.files['image']
-        print(f"DEBUG: Image file: {file.filename if file else 'None'}")
+        logger.debug("Image file: %s", file.filename if file else 'None')
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             # Ensure upload directory exists
             os.makedirs(current_app.config['UPLOAD_FOLDER'], exist_ok=True)
             file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
-            print(f"DEBUG: Saved image to: {file_path}")
+            logger.debug("Saved image to: %s", file_path)
             # Construct URL (assuming server is accessible via same host)
             image_url = f"/api/reports/uploads/{filename}"
         else:
-            print(f"DEBUG: Image file not allowed or missing: {file.filename if file else 'None'}")
+            logger.debug("Image file not allowed or missing: %s", file.filename if file else 'None')
 
     if not report_type or not location:
-        print(f"DEBUG: Validation failed - type: {report_type}, location: {location}")
+        logger.warning("Validation failed - type: %s, location: %s", report_type, location)
         return jsonify({"error": "Type and location are required"}), 400
         
     db = get_db()
@@ -234,7 +239,7 @@ def verify_report(report_id):
             current_app.logger.warning(f"Auto-escalation failed: {e}")
     
     except Exception as e:
-        print(f"Error creating alert: {e}")
+        logger.error("Error creating alert from verified report: %s", e)
     
     return jsonify({
         "message": "Report verified and broadcast as official alert",
@@ -307,7 +312,7 @@ def reject_report(report_id):
                 rejection_reason=rejection_reason or "False alarm/Duplicate"
             )
         except Exception as e:
-            print(f"Failed to send dismissal notification: {e}")
+            logger.error("Failed to send dismissal notification: %s", e)
     
     return jsonify({
         "message": "Report rejected and dismissed",

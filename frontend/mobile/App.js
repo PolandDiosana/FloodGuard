@@ -39,9 +39,14 @@ import {
 import { CardStyleInterpolators } from "@react-navigation/stack";
 import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WebView } from 'react-native-webview';
+import * as Location from 'expo-location';
 
 export const ThemeContext = createContext();
 export const useTheme = () => useContext(ThemeContext);
+
+const LocationContext = createContext(null);
+const useUserLocation = () => useContext(LocationContext);
 
 export const theme = {
   background: "#1E2A38",
@@ -74,7 +79,7 @@ const ACCOUNT_IMAGE = require("./assets/flood.png");
 const LOCATION_IMAGE = require("./assets/flood4.jpg");
 const NOTIFY_IMAGE = require("./assets/flood5.jpg");
 const LOGO = require("./assets/logo.png");
-const API_BASE = "http://192.168.1.13:5000";
+const API_BASE = "http://172.16.17.33:5000"; // Your machine's LAN IP — update if it changes
 
 const safeGoBack = (navigation, fallback) => {
   if (navigation?.canGoBack?.()) {
@@ -2138,29 +2143,22 @@ const MapScreen = ({ navigation, route }) => {
   const mapFocusSensor = mergedSensors[0];
   const bottomInset = Platform.OS === "android" ? 32 : 16;
   const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
-  const mapRef = useRef(null);
-  const [mapReady, setMapReady] = useState(false);
-  const [highlightSensor, setHighlightSensor] = useState(false);
-  const shouldAnimate = route?.params?.animate;
+  const webViewRef = useRef(null);
 
   const toggleMapType = () =>
     setMapType((current) => (current === "standard" ? "hybrid" : "standard"));
 
   useEffect(() => {
-    if (!mapReady || !shouldAnimate || !mapRef.current) {
-      return;
-    }
-
-    mapRef.current.fitToCoordinates(
-      [{ latitude: mapFocusSensor.latitude, longitude: mapFocusSensor.longitude }],
-      {
-        edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
-        animated: true,
-      }
-    );
-    const timer = setTimeout(() => setHighlightSensor(true), 900);
-    return () => clearTimeout(timer);
-  }, [mapReady, shouldAnimate, mergedSensors]);
+    if (!webViewRef.current) return;
+    webViewRef.current.injectJavaScript(`updateSensor(${JSON.stringify({
+      id: mapFocusSensor.id,
+      lat: mapFocusSensor.latitude,
+      lng: mapFocusSensor.longitude,
+      risk: mapFocusSensor.risk || 'low',
+      status: mapFocusSensor.status || 'NO DATA',
+      flood_level: mapFocusSensor.flood_level ?? 0,
+    })}); true;`);
+  }, [sensorData]);
 
   return (
     <SafeAreaView style={styles.dashboardSafe}>
@@ -2180,46 +2178,19 @@ const MapScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </LinearGradient>
       <View style={styles.mapFull}>
-        <MapView
-          ref={mapRef}
+        <WebView
+          ref={webViewRef}
+          source={{ html: buildSensorMapHTML(mapFocusSensor, MABOLO_BOUNDARY) }}
           style={styles.mapFullMap}
-          initialRegion={MABOLO_REGION}
-          mapType={mapType}
-          onMapReady={() => setMapReady(true)}
-        >
-          <Polygon
-            coordinates={MABOLO_BOUNDARY}
-            strokeColor="#74C5E6"
-            fillColor="rgba(42,106,227,0.15)"
-            strokeWidth={2}
-          />
-          <Marker
-            coordinate={{
-              latitude: MABOLO_REGION.latitude,
-              longitude: MABOLO_REGION.longitude,
-            }}
-            pinColor="#74C5E6"
-          />
-          <Marker
-            key={mapFocusSensor.id}
-            coordinate={{ latitude: mapFocusSensor.latitude, longitude: mapFocusSensor.longitude }}
-            pinColor={
-              mapFocusSensor.risk === "low"
-                ? "#32c26a"
-                : mapFocusSensor.risk === "medium"
-                  ? "#f5c542"
-                  : "#f35b5b"
-            }
-            opacity={highlightSensor ? 1 : 0.85}
-            title={mapFocusSensor.id}
-            description={`${mapFocusSensor.status || "UNKNOWN"} · ${mapFocusSensor.flood_level ?? "n/a"}cm · GPS: ${mapFocusSensor.latitude?.toFixed(4) ?? "N/A"}, ${mapFocusSensor.longitude?.toFixed(4) ?? "N/A"}`}
-            onCalloutPress={() => {
-              if (mapFocusSensor.maps_url) {
-                Linking.openURL(mapFocusSensor.maps_url);
-              }
-            }}
-          />
-        </MapView>
+          javaScriptEnabled
+          originWhitelist={['*']}
+          onMessage={(e) => {
+            try {
+              const data = JSON.parse(e.nativeEvent.data);
+              if (data.type === 'openMaps' && data.url) Linking.openURL(data.url);
+            } catch (_) {}
+          }}
+        />
       </View>
       <View style={[styles.mapLegendBar, { paddingBottom: 18 + bottomInset }]}>
         <Text style={styles.mapLegendTitle}>Sensors</Text>
@@ -2648,9 +2619,268 @@ const AlertDetailScreen = ({ route, navigation }) => {
   );
 };
 
+// ─── Leaflet map HTML builders ────────────────────────────────────────────────
+
+const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+const LEAFLET_JS  = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+
+const buildEvacPreviewHTML = (centers, userLat, userLng) => {
+  const cData = JSON.stringify(centers.map(c => ({
+    lat: c.coordinate.latitude, lng: c.coordinate.longitude, status: c.status, name: c.name,
+  })));
+  const fZone = JSON.stringify(FLOOD_ZONE.map(p => [p.latitude, p.longitude]));
+  // Route from user to nearest center (first in sorted list)
+  const nearest = centers[0];
+  const routePoints = nearest
+    ? JSON.stringify([[userLat, userLng], [nearest.coordinate.latitude, nearest.coordinate.longitude]])
+    : JSON.stringify([[userLat, userLng]]);
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="stylesheet" href="${LEAFLET_CSS}"/>
+<script src="${LEAFLET_JS}"><\/script>
+<style>
+*{margin:0;padding:0}
+html,body,#map{width:100%;height:100%;background:#1E2A38}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none}
+</style>
+</head><body><div id="map"></div><script>
+var centers=${cData}, fZone=${fZone}, route=${routePoints};
+var uLat=${userLat}, uLng=${userLng};
+
+var map=L.map('map',{
+  zoomControl:false,attributionControl:false,
+  dragging:false,touchZoom:false,scrollWheelZoom:false,
+  doubleClickZoom:false,keyboard:false
+}).setView([uLat,uLng],15);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// Flood zone
+L.polygon(fZone,{color:'#e2463b',fillColor:'#e2463b',fillOpacity:0.18,weight:1.5}).addTo(map);
+
+// Route line to nearest center
+if(route.length>1){
+  L.polyline(route,{color:'#74C5E6',weight:3,dashArray:'8,5',opacity:0.9}).addTo(map);
+}
+
+// Evacuation center pins
+centers.forEach(function(x){
+  var icon=L.divIcon({
+    html:'<div style="width:14px;height:14px;border-radius:50%;background:'+(x.status==='open'?'#2fb864':'#f59e0b')+';border:2px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.5)"></div>',
+    iconSize:[14,14],iconAnchor:[7,7],className:''
+  });
+  L.marker([x.lat,x.lng],{icon:icon}).addTo(map);
+});
+
+// User location — pulsing blue dot
+var userIcon=L.divIcon({
+  html:'<div style="position:relative;width:18px;height:18px">'
+     +'<div style="position:absolute;inset:0;border-radius:50%;background:rgba(116,197,230,0.3);animation:pulse 1.8s ease-out infinite"></div>'
+     +'<div style="position:absolute;inset:3px;border-radius:50%;background:#74C5E6;border:2px solid #fff;box-shadow:0 0 8px rgba(116,197,230,.8)"></div>'
+     +'</div>',
+  iconSize:[18,18],iconAnchor:[9,9],className:''
+});
+L.marker([uLat,uLng],{icon:userIcon,zIndexOffset:1000}).addTo(map);
+
+// Fit map to show user + nearest center with padding
+var allPts=[[uLat,uLng]];
+centers.forEach(function(x){allPts.push([x.lat,x.lng]);});
+if(allPts.length>1){
+  map.fitBounds(allPts,{padding:[28,28],maxZoom:16});
+} else {
+  map.setView([uLat,uLng],15);
+}
+
+// Pulse animation via injected style
+var style=document.createElement('style');
+style.textContent='@keyframes pulse{0%{transform:scale(1);opacity:0.8}70%{transform:scale(2.4);opacity:0}100%{transform:scale(2.4);opacity:0}}';
+document.head.appendChild(style);
+<\/script></body></html>`;
+};
+
+const buildEvacMapHTML = (centers, userLat, userLng) => {
+  const cData = JSON.stringify(centers.map((c, i) => ({
+    id: c.id, name: c.name, status: c.status,
+    lat: c.coordinate.latitude, lng: c.coordinate.longitude,
+    distance: c.distance || '', num: i + 1,
+    slots: c.slots != null ? c.slots : Math.max(0, (c.capacity || 0) - (c.slots_filled || 0)),
+  })));
+  const fZone = JSON.stringify(FLOOD_ZONE.map(p => [p.latitude, p.longitude]));
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="stylesheet" href="${LEAFLET_CSS}"/>
+<script src="${LEAFLET_JS}"><\/script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}html,body,#map{width:100%;height:100%;background:#1E2A38}
+.leaflet-control-attribution{display:none}
+.evac-tip{background:#283747!important;color:#fff!important;border:1px solid #44566A!important;border-radius:8px!important;font-size:12px!important;font-family:sans-serif!important;padding:6px 10px!important;white-space:nowrap!important;box-shadow:0 2px 8px rgba(0,0,0,.4)!important}
+.evac-tip::before{display:none!important}
+</style>
+</head><body><div id="map"></div><script>
+var centers=${cData};
+var uLat=${userLat},uLng=${userLng};
+var fZone=${fZone};
+var map=L.map('map',{zoomControl:true}).setView([uLat,uLng],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.polygon(fZone,{color:'#e2463b',fillColor:'#e2463b',fillOpacity:0.2,weight:2}).addTo(map);
+var routeLine=null;
+var markerMap={};
+function drawRoute(c){
+  if(routeLine)map.removeLayer(routeLine);
+  routeLine=L.polyline([[uLat,uLng],[c.lat,c.lng]],{color:'#74C5E6',weight:4,dashArray:'10,5'}).addTo(map);
+  map.fitBounds([[uLat,uLng],[c.lat,c.lng]],{padding:[60,60]});
+}
+centers.forEach(function(c){
+  var open=c.status==='open';
+  var icon=L.divIcon({
+    html:'<div style="width:28px;height:28px;border-radius:50%;background:'+(open?'#2fb864':'#f59e0b')+';border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;font-family:sans-serif;font-size:11px;font-weight:bold;color:#fff">'+c.num+'</div>',
+    iconSize:[28,28],iconAnchor:[14,14],className:''
+  });
+  var m=L.marker([c.lat,c.lng],{icon:icon}).addTo(map);
+  m.bindTooltip('<b>'+c.name+'</b><br>'+(open?'<span style="color:#2fb864">OPEN</span>':'<span style="color:#f59e0b">FULL</span>')+(c.distance?' \u00b7 '+c.distance+' away':''),{
+    className:'evac-tip',direction:'top',offset:[0,-16]
+  });
+  m.on('click',function(){
+    drawRoute(c);
+    try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'select',id:c.id}));}catch(e){}
+  });
+  markerMap[c.id]=c;
+});
+var uIcon=L.divIcon({html:'<div style="width:20px;height:20px;border-radius:50%;background:#74C5E6;border:3px solid #fff;box-shadow:0 0 12px rgba(116,197,230,.8)"></div>',iconSize:[20,20],iconAnchor:[10,10],className:''});
+var userMarker=L.marker([uLat,uLng],{icon:uIcon,zIndexOffset:1000}).addTo(map).bindTooltip('You are here',{className:'evac-tip',direction:'top',offset:[0,-12]});
+var activeCenterId=centers.length>0?centers[0].id:null;
+if(centers.length>0)drawRoute(centers[0]);
+function handleRNMessage(id){activeCenterId=id;var c=markerMap[id];if(c)drawRoute(c);}
+function updateUserLocation(lat,lng){uLat=lat;uLng=lng;userMarker.setLatLng([lat,lng]);if(activeCenterId){var c=markerMap[activeCenterId];if(c)drawRoute(c);}}
+function onMsg(e){try{var d=JSON.parse(e.data);if(d.type==='select')handleRNMessage(d.id);else if(d.type==='location')updateUserLocation(d.lat,d.lng);}catch(ex){}}
+document.addEventListener('message',onMsg);
+window.addEventListener('message',onMsg);
+<\/script></body></html>`;
+};
+
+const buildSensorMapHTML = (sensor, boundary) => {
+  const bnd = JSON.stringify(boundary.map(p => [p.latitude, p.longitude]));
+  const sLat = sensor.latitude || MABOLO_REGION.latitude;
+  const sLng = sensor.longitude || MABOLO_REGION.longitude;
+  const sRisk = sensor.risk || 'low';
+  const sStatus = (sensor.status || 'NO DATA').replace(/'/g, "\\'");
+  const sFlood = sensor.flood_level ?? 0;
+  const sId = (sensor.id || '').replace(/'/g, "\\'");
+  const sMapsUrl = (sensor.maps_url || '').replace(/'/g, "\\'");
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="stylesheet" href="${LEAFLET_CSS}"/>
+<script src="${LEAFLET_JS}"><\/script>
+<style>*{margin:0;padding:0}html,body,#map{width:100%;height:100%}.leaflet-control-attribution{display:none}
+.s-tip{background:#283747!important;color:#fff!important;border:1px solid #44566A!important;border-radius:8px!important;font-size:12px!important;font-family:sans-serif!important;padding:6px 10px!important;white-space:nowrap!important}
+.s-tip::before{display:none!important}</style>
+</head><body><div id="map"></div><script>
+var bnd=${bnd};
+var map=L.map('map',{zoomControl:true}).setView([${MABOLO_REGION.latitude},${MABOLO_REGION.longitude}],15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.polygon(bnd,{color:'#74C5E6',fillColor:'#74C5E6',fillOpacity:0.08,weight:2}).addTo(map);
+function riskColor(r){return r==='high'?'#f35b5b':r==='medium'?'#f5c542':'#32c26a';}
+var sensorMarker=L.marker([${sLat},${sLng}],{icon:L.divIcon({
+  html:'<div style="width:24px;height:24px;border-radius:50%;background:'+riskColor('${sRisk}')+';border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.5)"></div>',
+  iconSize:[24,24],iconAnchor:[12,12],className:''
+})}).addTo(map);
+sensorMarker.bindTooltip('<b>${sId}</b><br>${sStatus} \u00b7 ${sFlood}cm',{className:'s-tip',direction:'top',offset:[0,-14]});
+sensorMarker.on('click',function(){try{window.ReactNativeWebView.postMessage(JSON.stringify({type:'openMaps',url:'${sMapsUrl}'}));}catch(e){}});
+function updateSensor(d){
+  var icon=L.divIcon({html:'<div style="width:24px;height:24px;border-radius:50%;background:'+riskColor(d.risk)+';border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.5)"></div>',iconSize:[24,24],iconAnchor:[12,12],className:''});
+  if(d.lat&&d.lng)sensorMarker.setLatLng([d.lat,d.lng]);
+  sensorMarker.setIcon(icon);
+  sensorMarker.setTooltipContent('<b>'+d.id+'</b><br>'+d.status+' \u00b7 '+d.flood_level+'cm');
+}
+document.addEventListener('message',function(e){try{var d=JSON.parse(e.data);if(d.type==='updateSensor')updateSensor(d.sensor);}catch(ex){}});
+window.addEventListener('message',function(e){try{var d=JSON.parse(e.data);if(d.type==='updateSensor')updateSensor(d.sensor);}catch(ex){}});
+<\/script></body></html>`;
+};
+
+const buildNavMapHTML = (center, userLat, userLng) => {
+  const cLat = center.coordinate.latitude;
+  const cLng = center.coordinate.longitude;
+  const centerName = (center.name || 'Evacuation Center').replace(/'/g, "\\'");
+  return `<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<link rel="stylesheet" href="${LEAFLET_CSS}"/>
+<script src="${LEAFLET_JS}"><\/script>
+<style>
+*{margin:0;padding:0}html,body,#map{width:100%;height:100%;background:#1E2A38}
+.leaflet-control-attribution,.leaflet-control-zoom{display:none}
+.nav-tip{background:#283747!important;color:#fff!important;border:1px solid #44566A!important;border-radius:8px!important;font-size:12px!important;font-family:sans-serif!important;padding:5px 9px!important;white-space:nowrap!important}
+.nav-tip::before{display:none!important}
+</style>
+</head><body><div id="map"></div><script>
+var uLat=${userLat},uLng=${userLng},cLat=${cLat},cLng=${cLng};
+var map=L.map('map',{zoomControl:false}).setView([uLat,uLng],17);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+// Destination marker
+var dIcon=L.divIcon({
+  html:'<div style="width:28px;height:28px;border-radius:50%;background:#e2463b;border:3px solid #fff;box-shadow:0 2px 12px rgba(226,70,59,.6);display:flex;align-items:center;justify-content:center">'
+    +'<div style="width:8px;height:8px;border-radius:50%;background:#fff"></div></div>',
+  iconSize:[28,28],iconAnchor:[14,14],className:''
+});
+L.marker([cLat,cLng],{icon:dIcon,zIndexOffset:500}).addTo(map)
+  .bindTooltip('${centerName}',{className:'nav-tip',direction:'top',offset:[0,-16],permanent:false});
+
+// User marker — pulsing blue dot
+var uHtml='<div style="position:relative;width:26px;height:26px">'
+  +'<div style="position:absolute;inset:0;border-radius:50%;background:rgba(116,197,230,0.3);animation:pulse 1.6s ease-out infinite"></div>'
+  +'<div style="position:absolute;inset:4px;border-radius:50%;background:#74C5E6;border:2.5px solid #fff;box-shadow:0 0 12px rgba(116,197,230,.8)"></div>'
+  +'</div>';
+var uIcon=L.divIcon({html:uHtml,iconSize:[26,26],iconAnchor:[13,13],className:''});
+var userMarker=L.marker([uLat,uLng],{icon:uIcon,zIndexOffset:1000}).addTo(map);
+
+// Straight-line placeholder until OSRM responds
+var straight=L.polyline([[uLat,uLng],[cLat,cLng]],{color:'#74C5E6',weight:4,dashArray:'10,7',opacity:0.45}).addTo(map);
+map.fitBounds([[uLat,uLng],[cLat,cLng]],{padding:[50,50]});
+
+// OSRM route (replaces straight line)
+var shadowLine=null,routeLine=null;
+function setRoute(coords){
+  if(straight){map.removeLayer(straight);straight=null;}
+  if(shadowLine)map.removeLayer(shadowLine);
+  if(routeLine)map.removeLayer(routeLine);
+  shadowLine=L.polyline(coords,{color:'rgba(0,0,0,0.25)',weight:12,lineJoin:'round',lineCap:'round'}).addTo(map);
+  routeLine=L.polyline(coords,{color:'#74C5E6',weight:7,opacity:0.95,lineJoin:'round',lineCap:'round'}).addTo(map);
+  userMarker.bringToFront();
+  map.fitBounds(routeLine.getBounds(),{padding:[50,50]});
+}
+
+// Live position update — re-centers map on user
+function updateNavigation(lat,lng){
+  uLat=lat;uLng=lng;
+  userMarker.setLatLng([lat,lng]);
+  map.panTo([lat,lng],{animate:true,duration:0.7,easeLinearity:0.4});
+}
+
+var s=document.createElement('style');
+s.textContent='@keyframes pulse{0%{transform:scale(1);opacity:0.7}70%{transform:scale(2.8);opacity:0}100%{transform:scale(2.8);opacity:0}}';
+document.head.appendChild(s);
+
+function onMsg(e){
+  try{
+    var d=JSON.parse(e.data);
+    if(d.type==='route')setRoute(d.coords);
+    else if(d.type==='move')updateNavigation(d.lat,d.lng);
+  }catch(ex){}
+}
+document.addEventListener('message',onMsg);
+window.addEventListener('message',onMsg);
+<\/script></body></html>`;
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 const EvacuationScreen = ({ navigation }) => {
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const { userLocation } = useUserLocation();
+
+  const effLat = userLocation?.latitude ?? USER_LOCATION.latitude;
+  const effLng = userLocation?.longitude ?? USER_LOCATION.longitude;
 
   const [centers, setCenters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -2681,8 +2911,8 @@ const EvacuationScreen = ({ navigation }) => {
           id: c.id.toString(),
           coordinate: { latitude: lat, longitude: lng },
           slots: Math.max(0, parseInt(c.capacity) - parseInt(c.slots_filled)),
-          distanceVal: Math.sqrt(Math.pow(lat - USER_LOCATION.latitude, 2) + Math.pow(lng - USER_LOCATION.longitude, 2)), // Simple prox sort
-          distance: getDistance(USER_LOCATION.latitude, USER_LOCATION.longitude, lat, lng),
+          distanceVal: Math.sqrt(Math.pow(lat - effLat, 2) + Math.pow(lng - effLng, 2)),
+          distance: getDistance(effLat, effLng, lat, lng),
         };
       });
 
@@ -2749,45 +2979,54 @@ const EvacuationScreen = ({ navigation }) => {
             </Card>
 
             <Card style={styles.mapCard}>
-              <View style={styles.mapHeader}>
+              {/* Header */}
+              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
                 <Text style={styles.evacMapTitle}>Evacuation Route Map</Text>
-                <View style={styles.routeStatusPill}>
-                  <Text style={styles.routeStatusText}>Safe Route Available</Text>
+                <View style={{ backgroundColor: "rgba(47,184,100,0.15)", borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 }}>
+                  <Text style={{ fontSize: 10, fontWeight: "700", color: "#2fb864" }}>Safe Route Available</Text>
                 </View>
               </View>
-              <TouchableOpacity
-                style={styles.mapPreview}
-                activeOpacity={0.85}
-                onPress={() => navigation.navigate("EvacuationMap", { centers })}
-              >
-                <MapView
-                  style={styles.mapPreviewMap}
-                  initialRegion={MABOLO_REGION}
-                  pitchEnabled={false}
-                  rotateEnabled={false}
+
+              {/* Map area — fixed height so WebView has room to render */}
+              <View style={{ height: 210, borderRadius: 14, overflow: "hidden" }}>
+                <WebView
+                  source={{ html: buildEvacPreviewHTML(centers, effLat, effLng) }}
+                  style={{ flex: 1 }}
+                  javaScriptEnabled
+                  originWhitelist={['*']}
                   scrollEnabled={false}
-                  zoomEnabled={false}
+                />
+
+                {/* Transparent overlay — catches all touches so WebView doesn't steal them */}
+                <TouchableOpacity
+                  style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+                  activeOpacity={0.88}
+                  onPress={() => navigation.navigate("EvacuationMap", { centers })}
                 >
-                  <Polyline coordinates={SAFE_ROUTE} strokeColor="#74C5E6" strokeWidth={4} />
-                  <Polygon
-                    coordinates={FLOOD_ZONE}
-                    strokeColor="#e2463b"
-                    fillColor="rgba(226,70,59,0.2)"
-                    strokeWidth={2}
-                  />
-                  {centers.map((center) => (
-                    <Marker
-                      key={center.id}
-                      coordinate={center.coordinate}
-                      pinColor={center.status === "open" ? "#2fb864" : "#f59e0b"}
-                    />
-                  ))}
-                  <Marker coordinate={USER_LOCATION} pinColor="#74C5E6" />
-                </MapView>
-                <View style={styles.mapPreviewOverlay}>
-                  <Text style={styles.mapSubtitle}>Tap to view full route</Text>
-                </View>
-              </TouchableOpacity>
+                  {/* "You are here" label */}
+                  <View style={{
+                    position: "absolute", top: 10, left: 10,
+                    backgroundColor: "rgba(40,55,71,0.88)",
+                    borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4,
+                    flexDirection: "row", alignItems: "center", gap: 5,
+                    borderWidth: 1, borderColor: "#74C5E6",
+                  }}>
+                    <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#74C5E6" }} />
+                    <Text style={{ color: "#74C5E6", fontSize: 11, fontWeight: "600" }}>You are here</Text>
+                  </View>
+
+                  {/* Bottom expand bar */}
+                  <View style={{
+                    position: "absolute", bottom: 0, left: 0, right: 0,
+                    backgroundColor: "rgba(40,55,71,0.88)",
+                    flexDirection: "row", alignItems: "center", justifyContent: "center",
+                    paddingVertical: 9, gap: 6,
+                  }}>
+                    <Feather name="maximize-2" size={13} color="#74C5E6" />
+                    <Text style={{ color: "#74C5E6", fontSize: 12, fontWeight: "600" }}>Tap to view full route map</Text>
+                  </View>
+                </TouchableOpacity>
+              </View>
             </Card>
 
             <View style={styles.sectionHeader}>
@@ -2885,36 +3124,146 @@ const EvacuationScreen = ({ navigation }) => {
 const ActiveNavigationScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const { userLocation } = useUserLocation();
 
   const center = route?.params?.center ?? EVAC_CENTERS[0];
   const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
   const bottomInset = Platform.OS === "android" ? 32 : 16;
-  const mapRef = useRef(null);
-  const [mapReady, setMapReady] = useState(false);
+  const effLat = userLocation?.latitude ?? USER_LOCATION.latitude;
+  const effLng = userLocation?.longitude ?? USER_LOCATION.longitude;
 
-  useEffect(() => {
-    if (!mapReady || !mapRef.current) {
-      return;
+  const cLat = center.coordinate.latitude;
+  const cLng = center.coordinate.longitude;
+
+  const webViewRef = useRef(null);
+  const [routeSteps, setRouteSteps] = useState([]);
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
+  const [distToNext, setDistToNext] = useState(null);
+  const [totalDist, setTotalDist] = useState(null);
+  const [eta, setEta] = useState(null);
+  const [arrived, setArrived] = useState(false);
+  const [routeLoading, setRouteLoading] = useState(true);
+  const [routeError, setRouteError] = useState(null);
+
+  const haversine = (lat1, lng1, lat2, lng2) => {
+    const R = 6371000;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2
+      + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  const fmtDist = (m) => {
+    if (m == null) return "—";
+    return m >= 1000 ? (m / 1000).toFixed(1) + " km" : Math.round(m) + " m";
+  };
+
+  const buildInstruction = (step) => {
+    const type = step.maneuver ? step.maneuver.type : "";
+    const mod  = step.maneuver ? (step.maneuver.modifier || "") : "";
+    const road = step.name ? " onto " + step.name : "";
+    if (type === "depart")          return "Head " + (mod || "forward") + road;
+    if (type === "arrive")          return "Arrive at destination";
+    if (type === "turn")            return "Turn " + mod + road;
+    if (type === "new name")        return "Continue" + road;
+    if (type === "continue")        return "Continue " + (mod || "straight") + road;
+    if (type === "fork")            return "Take the " + mod + " fork" + road;
+    if (type === "merge")           return "Merge " + mod + road;
+    if (type === "on ramp")         return "Take the on-ramp" + road;
+    if (type === "off ramp")        return "Take the off-ramp" + road;
+    if (type === "end of road")     return "Turn " + mod + " at end of road" + road;
+    if (type === "roundabout")      return "Enter the roundabout";
+    if (type === "rotary")          return "Enter the rotary";
+    if (type === "roundabout turn") return "At the roundabout, turn " + mod;
+    return "Continue" + road;
+  };
+
+  const stepIcon = (type, mod) => {
+    if (type === "arrive")              return "checkmark-circle";
+    if (type === "depart")              return "navigate-outline";
+    if (!mod)                           return "arrow-forward";
+    if (mod === "uturn")                return "return-down-back";
+    if (mod.includes("sharp left"))     return "arrow-back";
+    if (mod.includes("sharp right"))    return "arrow-forward";
+    if (mod.includes("slight left"))    return "return-up-back";
+    if (mod.includes("slight right"))   return "return-up-forward";
+    if (mod.includes("left"))           return "arrow-back";
+    if (mod.includes("right"))          return "arrow-forward";
+    return "arrow-forward";
+  };
+
+  const fetchRoute = async (startLat, startLng) => {
+    try {
+      setRouteLoading(true);
+      setRouteError(null);
+      const url = "https://router.project-osrm.org/route/v1/driving/"
+        + startLng + "," + startLat + ";" + cLng + "," + cLat
+        + "?steps=true&geometries=geojson&overview=full";
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.code !== "Ok" || !data.routes || !data.routes.length) throw new Error("No route");
+      const osrmRoute = data.routes[0];
+      const coords = osrmRoute.geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+      const steps = osrmRoute.legs[0].steps.map(function(s, i) {
+        return {
+          id: i,
+          instruction: buildInstruction(s),
+          distance: s.distance,
+          type: s.maneuver ? s.maneuver.type : "",
+          modifier: s.maneuver ? (s.maneuver.modifier || "") : "",
+          location: s.maneuver ? s.maneuver.location : null,
+        };
+      });
+      setRouteSteps(steps);
+      setTotalDist(Math.round(osrmRoute.distance));
+      setEta(Math.ceil(osrmRoute.duration / 60));
+      if (webViewRef.current) {
+        webViewRef.current.injectJavaScript("setRoute(" + JSON.stringify(coords) + "); true;");
+      }
+    } catch (err) {
+      setRouteError("Could not load route — showing straight path");
+    } finally {
+      setRouteLoading(false);
     }
+  };
 
-    mapRef.current.animateToRegion(
-      {
-        latitude: NAV_ROUTE[1].latitude,
-        longitude: NAV_ROUTE[1].longitude,
-        latitudeDelta: 0.004,
-        longitudeDelta: 0.004,
-      },
-      900
-    );
-  }, [mapReady]);
+  useEffect(function() { fetchRoute(effLat, effLng); }, []);
+
+  useEffect(function() {
+    if (!userLocation) return;
+    var lat = userLocation.latitude;
+    var lng = userLocation.longitude;
+    if (webViewRef.current) {
+      webViewRef.current.injectJavaScript("updateNavigation(" + lat + "," + lng + "); true;");
+    }
+    var distToDest = haversine(lat, lng, cLat, cLng);
+    if (distToDest < 50 && !arrived) { setArrived(true); return; }
+    setTotalDist(Math.round(distToDest));
+    setEta(Math.ceil(distToDest / 1000 / 5 * 60));
+    if (routeSteps.length > 0 && currentStepIdx < routeSteps.length - 1) {
+      var nextStep = routeSteps[currentStepIdx + 1];
+      if (nextStep && nextStep.location) {
+        var wLng = nextStep.location[0];
+        var wLat = nextStep.location[1];
+        var distToWp = haversine(lat, lng, wLat, wLng);
+        setDistToNext(Math.round(distToWp));
+        if (distToWp < 30) setCurrentStepIdx(function(prev) { return prev + 1; });
+      }
+    }
+  }, [userLocation]);
+
+  var currentStep   = routeSteps[currentStepIdx];
+  var upcomingSteps = routeSteps.slice(currentStepIdx + 1, currentStepIdx + 4);
 
   return (
     <SafeAreaView style={styles.dashboardSafe}>
       {Platform.OS === "android" ? (
         <View style={[styles.statusBarSpacer, { height: topInset }]} />
       ) : null}
+
       <View style={styles.navHeader}>
-        <TouchableOpacity onPress={() => safeGoBack(navigation, "Evacuate")}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={22} color="#ffffff" />
         </TouchableOpacity>
         <View style={styles.navHeaderText}>
@@ -2927,92 +3276,134 @@ const ActiveNavigationScreen = ({ navigation, route }) => {
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.navScrollContent,
-          { paddingBottom: 32 + bottomInset },
-        ]}
+        contentContainerStyle={[styles.navScrollContent, { paddingBottom: 32 + bottomInset }]}
         showsVerticalScrollIndicator={false}
       >
+        {arrived && (
+          <View style={{
+            margin: 18, borderRadius: 18, backgroundColor: "rgba(47,184,100,0.12)",
+            borderWidth: 1, borderColor: "#2fb864",
+            alignItems: "center", padding: 24, gap: 10,
+          }}>
+            <Ionicons name="checkmark-circle" size={48} color="#2fb864" />
+            <Text style={{ color: "#2fb864", fontSize: 20, fontWeight: "800", textAlign: "center" }}>
+              You have arrived!
+            </Text>
+            <Text style={{ color: "#94a3b8", fontSize: 13, textAlign: "center" }}>{center.name}</Text>
+            <TouchableOpacity
+              style={{ marginTop: 8, backgroundColor: "#2fb864", borderRadius: 14, paddingVertical: 13, paddingHorizontal: 32 }}
+              onPress={() => navigation.navigate("MainDrawer", { screen: "Evacuate" })}
+            >
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15 }}>Check In & End Navigation</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.navStats}>
           <View style={styles.navStatItem}>
-            <Ionicons name="time" size={16} color="#74C5E6" />
-            <Text style={styles.navStatText}>
-              {(() => {
-                const distKm = parseFloat(center.distance);
-                const walkingSpeedKmh = 5;
-                const timeMin = Math.round((distKm / walkingSpeedKmh) * 60);
-                return `${timeMin} min`;
-              })()}
-            </Text>
+            <Ionicons name="time-outline" size={16} color="#74C5E6" />
+            <Text style={styles.navStatText}>{eta != null ? eta + " min" : "—"}</Text>
           </View>
           <View style={styles.navStatDivider} />
           <View style={styles.navStatItem}>
-            <Ionicons name="navigate" size={16} color="#74C5E6" />
-            <Text style={styles.navStatText}>{center.distance}</Text>
+            <Ionicons name="navigate-outline" size={16} color="#74C5E6" />
+            <Text style={styles.navStatText}>{fmtDist(totalDist)}</Text>
+          </View>
+          <View style={styles.navStatDivider} />
+          <View style={styles.navStatItem}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: routeLoading ? "#f59e0b" : routeError ? "#ef4444" : "#2fb864" }} />
+            <Text style={[styles.navStatText, { fontSize: 11 }]}>
+              {routeLoading ? "Routing…" : routeError ? "Fallback" : "Live route"}
+            </Text>
           </View>
         </View>
 
         <View style={styles.navMapContainer}>
-          <MapView
-            ref={mapRef}
+          <WebView
+            ref={webViewRef}
+            source={{ html: buildNavMapHTML(center, effLat, effLng) }}
             style={styles.mapFullMap}
-            initialRegion={MABOLO_REGION}
-            showsUserLocation
-            followsUserLocation
-            showsCompass
-            onMapReady={() => setMapReady(true)}
-          >
-            <Polyline
-              coordinates={NAV_ROUTE}
-              strokeColor="#74C5E6"
-              strokeWidth={5}
-            />
-            <Polyline
-              coordinates={NAV_ALT_ROUTE}
-              strokeColor="#74C5E6"
-              strokeWidth={3}
-              strokeDasharray={[6, 6]}
-            />
-            <Marker coordinate={center.coordinate} pinColor="#e2463b" />
-          </MapView>
-          <View style={styles.navMapOverlay}>
-            <Text style={styles.navOverlayTitle}>Navigating Active</Text>
-            <Text style={styles.navOverlaySubtitle}>Following route...</Text>
+            javaScriptEnabled
+            originWhitelist={["*"]}
+          />
+          <View style={[styles.navMapOverlay, { backgroundColor: "rgba(40,55,71,0.88)", borderWidth: 1, borderColor: "#44566A" }]}>
+            <Text style={[styles.navOverlayTitle, { color: "#74C5E6" }]}>
+              {arrived ? "Arrived" : routeLoading ? "Routing…" : "Navigating"}
+            </Text>
+            {!arrived && !routeLoading && (
+              <Text style={styles.navOverlaySubtitle}>Following route</Text>
+            )}
           </View>
         </View>
 
-        <View style={styles.navDirections}>
-          <Text style={styles.navSectionTitle}>Upcoming Directions</Text>
-          {NAV_STEPS.map((step) => (
-            <Card key={step.id} style={styles.navDirectionCard}>
-              <View style={styles.navDirectionRow}>
-                <Ionicons name="arrow-forward" size={18} color="#74C5E6" />
-                <Text style={styles.navDirectionText}>{step.text}</Text>
-              </View>
-              <Text style={styles.navDirectionMeta}>{step.distance}</Text>
-            </Card>
-          ))}
-        </View>
+        {!arrived && currentStep && !routeLoading && (
+          <View style={{
+            marginHorizontal: 18, marginTop: 12, borderRadius: 16,
+            backgroundColor: "#437D8F", padding: 16,
+            flexDirection: "row", alignItems: "center", gap: 14,
+          }}>
+            <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: "rgba(255,255,255,0.15)", alignItems: "center", justifyContent: "center" }}>
+              <Ionicons name={stepIcon(currentStep.type, currentStep.modifier)} size={26} color="#fff" />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: "#fff", fontWeight: "700", fontSize: 15, lineHeight: 20 }}>
+                {currentStep.instruction}
+              </Text>
+              {distToNext != null && (
+                <Text style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 3 }}>
+                  {"In " + fmtDist(distToNext)}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
+        {routeLoading && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 18, marginTop: 12 }}>
+            <ActivityIndicator size="small" color="#74C5E6" />
+            <Text style={{ color: "#94a3b8", fontSize: 13 }}>Calculating road route…</Text>
+          </View>
+        )}
+        {routeError && !routeLoading && (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginHorizontal: 18, marginTop: 12 }}>
+            <Feather name="alert-triangle" size={14} color="#f59e0b" />
+            <Text style={{ color: "#f59e0b", fontSize: 12 }}>{routeError}</Text>
+          </View>
+        )}
+
+        {!arrived && upcomingSteps.length > 0 && (
+          <View style={styles.navDirections}>
+            <Text style={[styles.navSectionTitle, { marginBottom: 6 }]}>Upcoming Turns</Text>
+            {upcomingSteps.map(function(step) {
+              return (
+                <Card key={step.id} style={styles.navDirectionCard}>
+                  <View style={styles.navDirectionRow}>
+                    <Ionicons name={stepIcon(step.type, step.modifier)} size={18} color="#74C5E6" />
+                    <Text style={styles.navDirectionText}>{step.instruction}</Text>
+                  </View>
+                  <Text style={styles.navDirectionMeta}>{fmtDist(step.distance)}</Text>
+                </Card>
+              );
+            })}
+          </View>
+        )}
 
         <Card style={styles.navSafetyCard}>
           <Ionicons name="alert-circle" size={18} color="#e09b2f" />
           <Text style={styles.navSafetyText}>
-            Stay alert and follow evacuation protocols. If conditions worsen,
-            seek immediate shelter.
+            Stay alert and follow evacuation protocols. If conditions worsen, seek immediate shelter.
           </Text>
         </Card>
 
         <View style={styles.navActions}>
-          <TouchableOpacity
-            style={styles.navEndButton}
-            onPress={() => navigation.replace("Evacuate")}
-          >
+          <TouchableOpacity style={styles.navEndButton} onPress={() => navigation.navigate("MainDrawer", { screen: "Evacuate" })}>
             <Text style={styles.navEndText}>End Navigation</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.navReportButton}>
             <Text style={styles.navReportText}>Report Issue</Text>
           </TouchableOpacity>
         </View>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -3734,61 +4125,222 @@ const SettingsScreen = ({ navigation }) => {
 
 const EvacuationMapScreen = ({ navigation, route }) => {
   const { theme } = useTheme();
-  const styles = getStyles(theme);
+  const { userLocation } = useUserLocation();
 
   const centers = route?.params?.centers ?? EVAC_CENTERS;
-
   const topInset = Platform.OS === "android" ? StatusBar.currentHeight ?? 0 : 0;
   const bottomInset = Platform.OS === "android" ? 32 : 16;
 
+  // Effective location — real GPS if available, hardcoded fallback
+  const effLat = userLocation?.latitude ?? USER_LOCATION.latitude;
+  const effLng = userLocation?.longitude ?? USER_LOCATION.longitude;
+
+  // Auto-select the nearest center (centers are pre-sorted by proximity)
+  const [selectedCenter, setSelectedCenter] = useState(centers.length > 0 ? centers[0] : null);
+  const slideAnim = useRef(new Animated.Value(1)).current;
+  const webViewRef = useRef(null);
+
+  // Push live GPS updates into the Leaflet map
+  useEffect(() => {
+    if (!webViewRef.current || !userLocation) return;
+    webViewRef.current.injectJavaScript(
+      `updateUserLocation(${userLocation.latitude}, ${userLocation.longitude}); true;`
+    );
+  }, [userLocation]);
+
+  const tellMapSelect = (center) => {
+    if (!webViewRef.current || !center) return;
+    webViewRef.current.injectJavaScript(`handleRNMessage('${center.id}'); true;`);
+  };
+
+  const selectCenter = (center) => {
+    setSelectedCenter(center);
+    Animated.spring(slideAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 10 }).start();
+    tellMapSelect(center);
+  };
+
+  const panelTranslate = slideAnim.interpolate({ inputRange: [0, 1], outputRange: [240, 0] });
+
+  const nearestCenter = centers[0];
+  const slots = selectedCenter
+    ? (selectedCenter.slots != null
+        ? selectedCenter.slots
+        : Math.max(0, (selectedCenter.capacity ?? 0) - (selectedCenter.slots_filled ?? 0)))
+    : 0;
+
   return (
-    <SafeAreaView style={styles.dashboardSafe}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#1E2A38" }}>
       {Platform.OS === "android" ? (
-        <View style={[styles.statusBarSpacer, { height: topInset }]} />
+        <View style={{ height: topInset }} />
       ) : null}
-      <LinearGradient colors={EVAC_GRADIENT} style={styles.mapHeaderBar}>
-        <TouchableOpacity onPress={() => safeGoBack(navigation, "Evacuate")}>
+
+      <LinearGradient colors={EVAC_GRADIENT} style={{
+        paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16,
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={22} color="#ffffff" />
         </TouchableOpacity>
-        <Text style={styles.mapHeaderTitle}>Evacuation Route Map</Text>
+        <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>Evacuation Route Map</Text>
         <View style={{ width: 22 }} />
       </LinearGradient>
-      <View style={styles.mapFull}>
-        <MapView style={styles.mapFullMap} initialRegion={MABOLO_REGION}>
-          <Polyline coordinates={SAFE_ROUTE} strokeColor="#74C5E6" strokeWidth={5} />
-          <Polygon
-            coordinates={FLOOD_ZONE}
-            strokeColor="#e2463b"
-            fillColor="rgba(226,70,59,0.25)"
-            strokeWidth={2}
-          />
-          {centers.map((center) => (
-            <Marker
-              key={center.id}
-              coordinate={center.coordinate}
-              pinColor={center.status === "open" ? "#2fb864" : "#f59e0b"}
-              title={center.name}
-            />
+
+      {/* Map fills remaining space */}
+      <View style={{ flex: 1, position: "relative" }}>
+        <WebView
+          ref={webViewRef}
+          source={{ html: buildEvacMapHTML(centers, effLat, effLng) }}
+          style={StyleSheet.absoluteFillObject}
+          javaScriptEnabled
+          originWhitelist={['*']}
+          onMessage={(e) => {
+            try {
+              const data = JSON.parse(e.nativeEvent.data);
+              if (data.type === 'select') {
+                const found = centers.find(c => c.id === data.id);
+                if (found) {
+                  setSelectedCenter(found);
+                  Animated.spring(slideAnim, { toValue: 1, useNativeDriver: true, tension: 80, friction: 10 }).start();
+                }
+              }
+            } catch (_) {}
+          }}
+        />
+
+        {/* Nearest center badge — top left */}
+        {nearestCenter && (
+          <TouchableOpacity
+            style={{
+              position: "absolute", top: 12, left: 12,
+              backgroundColor: "rgba(40,55,71,0.92)", borderRadius: 12,
+              paddingHorizontal: 10, paddingVertical: 6,
+              flexDirection: "row", alignItems: "center", gap: 6,
+              borderWidth: 1, borderColor: "#74C5E6",
+            }}
+            onPress={() => selectCenter(nearestCenter)}
+          >
+            <Feather name="navigation" size={12} color="#74C5E6" />
+            <Text style={{ color: "#74C5E6", fontSize: 12, fontWeight: "700" }}>
+              Nearest: {nearestCenter.name}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Map legend — top right */}
+        <View style={{
+          position: "absolute", top: 12, right: 12,
+          backgroundColor: "rgba(40,55,71,0.92)", borderRadius: 12,
+          padding: 10, gap: 6, borderWidth: 1, borderColor: "#44566A",
+        }}>
+          {[
+            { color: "#74C5E6", label: "Route" },
+            { color: "#2fb864", label: "Open" },
+            { color: "#f59e0b", label: "Full" },
+            { color: "#e2463b", label: "Flood zone" },
+          ].map(({ color, label }) => (
+            <View key={label} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: color }} />
+              <Text style={{ color: "#94a3b8", fontSize: 11 }}>{label}</Text>
+            </View>
           ))}
-          <Marker coordinate={USER_LOCATION} pinColor="#74C5E6" />
-        </MapView>
-      </View>
-      <View style={[styles.mapLegendBar, { paddingBottom: 18 + bottomInset }]}>
-        <Text style={styles.mapLegendTitle}>Route Status</Text>
-        <View style={styles.mapLegendItems}>
-          <View style={styles.mapLegendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#74C5E6" }]} />
-            <Text style={styles.legendText}>Safe route</Text>
-          </View>
-          <View style={styles.mapLegendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#e2463b" }]} />
-            <Text style={styles.legendText}>Flood zone</Text>
-          </View>
-          <View style={styles.mapLegendItem}>
-            <View style={[styles.legendDot, { backgroundColor: "#2fb864" }]} />
-            <Text style={styles.legendText}>Evac center</Text>
-          </View>
         </View>
+
+        {/* Bottom info panel — slides up when a center is selected */}
+        {selectedCenter && (
+          <Animated.View style={{
+            position: "absolute", bottom: 0, left: 0, right: 0,
+            transform: [{ translateY: panelTranslate }],
+            backgroundColor: "#283747",
+            borderTopLeftRadius: 22, borderTopRightRadius: 22,
+            padding: 18, paddingBottom: 18 + bottomInset,
+            shadowColor: "#000", shadowOffset: { width: 0, height: -4 },
+            shadowOpacity: 0.25, shadowRadius: 10, elevation: 12,
+          }}>
+            {/* Drag handle */}
+            <View style={{ width: 40, height: 4, backgroundColor: "#44566A", borderRadius: 2, alignSelf: "center", marginBottom: 14 }} />
+
+            {/* Center info */}
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  {selectedCenter.id === nearestCenter?.id && (
+                    <View style={{ backgroundColor: "rgba(116,197,230,0.18)", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 }}>
+                      <Text style={{ color: "#74C5E6", fontSize: 10, fontWeight: "700" }}>NEAREST</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={{ color: "#ffffff", fontSize: 17, fontWeight: "700", marginBottom: 6 }}>
+                  {selectedCenter.name}
+                </Text>
+                <View style={{ flexDirection: "row", gap: 14 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Feather name="navigation" size={12} color="#94a3b8" />
+                    <Text style={{ color: "#94a3b8", fontSize: 12 }}>{selectedCenter.distance ?? "—"} away</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                    <Feather name="users" size={12} color="#94a3b8" />
+                    <Text style={{ color: "#94a3b8", fontSize: 12 }}>{slots} slots open</Text>
+                  </View>
+                  {selectedCenter.capacity ? (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                      <Feather name="home" size={12} color="#94a3b8" />
+                      <Text style={{ color: "#94a3b8", fontSize: 12 }}>Cap: {selectedCenter.capacity}</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+              <View style={{
+                backgroundColor: selectedCenter.status === "open" ? "rgba(47,184,100,0.15)" : "rgba(245,158,11,0.15)",
+                borderRadius: 10, paddingHorizontal: 12, paddingVertical: 5,
+              }}>
+                <Text style={{
+                  color: selectedCenter.status === "open" ? "#2fb864" : "#f59e0b",
+                  fontSize: 13, fontWeight: "700",
+                }}>
+                  {selectedCenter.status === "open" ? "OPEN" : "FULL"}
+                </Text>
+              </View>
+            </View>
+
+            {/* Action buttons */}
+            <View style={{ flexDirection: "row", gap: 10 }}>
+              <TouchableOpacity
+                style={{
+                  flex: 1, paddingVertical: 12, borderRadius: 13,
+                  borderWidth: 1, borderColor: "#44566A",
+                  flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+                onPress={() => callCenter(selectedCenter.phone)}
+              >
+                <Feather name="phone" size={16} color="#74C5E6" />
+                <Text style={{ color: "#74C5E6", fontWeight: "600", fontSize: 14 }}>Call</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{ flex: 2, borderRadius: 13, overflow: "hidden", opacity: selectedCenter.status !== "open" ? 0.45 : 1 }}
+                onPress={() => selectedCenter.status === "open" && navigation.navigate("ActiveNavigation", { center: selectedCenter })}
+                disabled={selectedCenter.status !== "open"}
+              >
+                <LinearGradient
+                  colors={["#437D8F", "#6EA2B3"]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ paddingVertical: 12, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6 }}
+                >
+                  <Feather name="map-pin" size={16} color="#fff" />
+                  <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>Navigate Here</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            {selectedCenter.status !== "open" && (
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 10 }}>
+                <Feather name="alert-circle" size={12} color="#ef4444" />
+                <Text style={{ color: "#ef4444", fontSize: 12 }}>This center is full — tap another pin to see alternatives.</Text>
+              </View>
+            )}
+          </Animated.View>
+        )}
       </View>
     </SafeAreaView>
   );
@@ -3932,6 +4484,33 @@ const MainDrawer = () => {
   );
 };
 
+function LocationProvider({ children }) {
+  const [userLocation, setUserLocation] = useState(null);
+  const [locationError, setLocationError] = useState(null);
+
+  useEffect(() => {
+    let subscription = null;
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setLocationError('Permission denied');
+        return;
+      }
+      subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+        (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+      );
+    })();
+    return () => { subscription?.remove(); };
+  }, []);
+
+  return (
+    <LocationContext.Provider value={{ userLocation, locationError }}>
+      {children}
+    </LocationContext.Provider>
+  );
+}
+
 export default function App() {
   const [form, setForm] = useState({ fullName: "", email: "", phone: "" });
   const [selection, setSelection] = useState("");
@@ -3939,6 +4518,7 @@ export default function App() {
   const [toggles, setToggles] = useState({ weather: true, community: false });
 
   return (
+    <LocationProvider>
     <ThemeContext.Provider value={{ theme }}>
       <StatusBar
         barStyle="light-content"
@@ -3993,6 +4573,7 @@ export default function App() {
         </Stack.Navigator>
       </NavigationContainer>
     </ThemeContext.Provider>
+    </LocationProvider>
   );
 }
 
